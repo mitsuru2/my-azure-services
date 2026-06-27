@@ -29,4 +29,9 @@ WORKDIR /home/node/app
 # node ユーザーに所有権を変更
 RUN chown -R node:node /home/node/app
 
+# node ユーザーに切り替え
 USER node
+
+# デフォルト動作 (Do nothing)
+CMD ["sleep", "infinity"]
+
