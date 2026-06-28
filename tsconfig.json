@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "checkJs": false,
+    "target": "es6",
+    "outDir": "dist",
+    "rootDir": ".",
+    "sourceMap": true,
+    "strict": false,
+    "esModuleInterop": true,
+    "types": ["node"]
+  }
+}

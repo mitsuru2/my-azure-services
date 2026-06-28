@@ -6,6 +6,8 @@ RUN apt-get update && apt-get install -y \
     git \
     sudo \
     jq \
+    curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Azure CLI のインストール
@@ -16,10 +18,22 @@ RUN gpg --keyserver keyserver.ubuntu.com --recv-keys EE4D7792F748182B \
     && gpg --export EE4D7792F748182B > /etc/apt/trusted.gpg.d/microsoft.gpg \
     && . /etc/os-release \
     && echo "deb [arch=amd64] https://packages.microsoft.com/debian/${VERSION_ID}/prod ${VERSION_CODENAME} main" > /etc/apt/sources.list.d/dotnetdev.list \
-    && apt-get update && apt-get install -y azure-functions-core-tools-4
+    && apt-get update && apt-get install -y azure-functions-core-tools-4 \
+    && rm -rf /var/lib/apt/lists/*
   
 # Bicep のインストール
 RUN az bicep install
+
+# GitHub CLI のインストール
+RUN (type -p wget >/dev/null || (sudo apt update && sudo apt install wget -y)) \
+	&& sudo mkdir -p -m 755 /etc/apt/keyrings \
+	&& out=$(mktemp) && wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+	&& cat $out | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+	&& sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+	&& sudo mkdir -p -m 755 /etc/apt/sources.list.d \
+	&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+	&& sudo apt update \
+	&& sudo apt install gh -y
 
 # nodeユーザーをパスワード無しでsudoコマンド実行可能に設定
 RUN echo "node ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/node \

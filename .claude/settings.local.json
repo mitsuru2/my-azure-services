@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:nektosact.com)",
+      "Bash(git -C /workspaces/my-azure-services ls-tree origin/main --name-only)",
+      "Bash(git -C /workspaces/my-azure-services ls-tree HEAD --name-only)"
+    ]
+  }
+}

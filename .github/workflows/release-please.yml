@@ -1,0 +1,36 @@
+name: release-please
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: googleapis/release-please-action@v5
+        id: release
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          release-type: node
+          target-branch: ${{ github.ref_name }}
+
+      - name: Write step summary
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          echo "## Release Created :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "| Key | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | \`${{ steps.release.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tag | \`${{ steps.release.outputs.tag_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Release URL | ${{ steps.release.outputs.html_url }} |" >> $GITHUB_STEP_SUMMARY
