@@ -19,8 +19,9 @@ jobs:
       tag_name: ${{ steps.release.outputs.tag_name }}
       version: ${{ steps.release.outputs.version }}
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@v17
         id: release
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           release-type: node
+          target-branch: ${{ github.ref_name }}
