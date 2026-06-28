@@ -38,6 +38,7 @@
 	// Add the Azure volumes to the container to keep credentials persistent.
 	"mounts": [
 		"source=azure,target=/home/node/.azure,type=volume",
-		"source=claude,target=/home/node/.claude,type=volume"
+		"source=claude,target=/home/node/.claude,type=volume",
+		"source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
 	]
 }
