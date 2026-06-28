@@ -1,6 +1,8 @@
 name: release-please
 
 on:
+  dispatch:
+    inputs:
   push:
     branches:
       - main
