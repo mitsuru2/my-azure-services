@@ -2,9 +2,6 @@ name: release-please
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 permissions:
   contents: write
@@ -25,3 +22,13 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           release-type: node
           target-branch: ${{ github.ref_name }}
+
+      - name: Write step summary
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          echo "## Release Created :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "| Key | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | \`${{ steps.release.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tag | \`${{ steps.release.outputs.tag_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Release URL | ${{ steps.release.outputs.html_url }} |" >> $GITHUB_STEP_SUMMARY
