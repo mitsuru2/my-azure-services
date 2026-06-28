@@ -1,8 +1,7 @@
 name: release-please
 
 on:
-  dispatch:
-    inputs:
+  workflow_dispatch:
   push:
     branches:
       - main
