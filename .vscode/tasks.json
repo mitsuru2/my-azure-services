@@ -2,10 +2,29 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "type": "shell",
+      "label": "npm build",
+      "command": "npm run build",
+      "group": "build",
+      "problemMatcher": "$tsc"
+    },
+    {
       "type": "func",
       "label": "func: host start",
       "command": "host start",
       "problemMatcher": "$func-node-watch",
+      "isBackground": true,
+      "dependsOn": "npm watch"
+    },
+    {
+      "type": "shell",
+      "label": "npm watch",
+      "command": "npm run watch",
+      "problemMatcher": "$tsc-watch",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
       "isBackground": true
     }
   ]
