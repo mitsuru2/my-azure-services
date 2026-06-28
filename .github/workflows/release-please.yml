@@ -34,3 +34,8 @@ jobs:
           echo "| Version | \`${{ steps.release.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Tag | \`${{ steps.release.outputs.tag_name }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Release URL | ${{ steps.release.outputs.html_url }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Write step summary (no release)
+        if: ${{ !steps.release.outputs.release_created }}
+        run: |
+          echo "Release is not created." >> $GITHUB_STEP_SUMMARY
