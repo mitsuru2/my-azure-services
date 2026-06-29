@@ -74,7 +74,7 @@ Terraformのstateファイルはリモートバックエンド (Azure Blob Stora
 | Log Analytics ワークスペース | PerGB2018 | App Insightsのログ格納先。日次上限 1 GB。 |
 | Application Insights | web | Function Appの監視。ローカル認証無効 (AAD認証のみ)。保持期間 90日。 |
 
-#### IAMロール割り当て** (Bicep管理)
+#### IAMロール割り当て (Bicep管理)
 
 | 対象リソース | プリンシパル | ロール | 用途 |
 |---|---|---|---|
