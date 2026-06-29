@@ -8,6 +8,8 @@ RUN apt-get update && apt-get install -y \
     jq \
     curl \
     ca-certificates \
+    wget \
+    libicu-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Azure CLI のインストール
@@ -17,12 +19,19 @@ RUN curl -sL https://aka.ms/InstallAzureCLIDeb | bash
 RUN gpg --keyserver keyserver.ubuntu.com --recv-keys EE4D7792F748182B \
     && gpg --export EE4D7792F748182B > /etc/apt/trusted.gpg.d/microsoft.gpg \
     && . /etc/os-release \
-    && echo "deb [arch=amd64] https://packages.microsoft.com/debian/${VERSION_ID}/prod ${VERSION_CODENAME} main" > /etc/apt/sources.list.d/dotnetdev.list \
+    && echo "deb [arch=$(dpkg --print-architecture)] https://packages.microsoft.com/debian/${VERSION_ID}/prod ${VERSION_CODENAME} main" > /etc/apt/sources.list.d/dotnetdev.list \
     && apt-get update && apt-get install -y azure-functions-core-tools-4 \
     && rm -rf /var/lib/apt/lists/*
   
 # Bicep のインストール
 RUN az bicep install
+
+# Terraformのインストール
+# https://developer.hashicorp.com/terraform/install
+RUN wget -O - https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list \
+    && apt-get update && apt-get install -y terraform \
+    && rm -rf /var/lib/apt/lists/*
 
 # GitHub CLI のインストール
 RUN (type -p wget >/dev/null || (sudo apt update && sudo apt install wget -y)) \
