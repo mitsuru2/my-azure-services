@@ -1,44 +1,45 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/docker-existing-dockerfile
 {
-	"name": "Existing Dockerfile",
-	"build": {
-		// Sets the run context to one level up instead of the .devcontainer folder.
-		"context": "..",
-		// Update the 'dockerFile' property if you aren't using the standard 'Dockerfile' filename.
-		"dockerfile": "../Dockerfile"
-	},
+  "name": "Existing Dockerfile",
+  "build": {
+    // Sets the run context to one level up instead of the .devcontainer folder.
+    "context": "..",
+    // Update the 'dockerFile' property if you aren't using the standard 'Dockerfile' filename.
+    "dockerfile": "../Dockerfile"
+  },
 
-	// Features to add to the dev container. More info: https://containers.dev/features.
-	// "features": {},
+  // Features to add to the dev container. More info: https://containers.dev/features.
+  // "features": {},
 
-	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [],
+  // Use 'forwardPorts' to make a list of ports inside the container available locally.
+  // "forwardPorts": [],
 
-	// Uncomment the next line to run commands after the container is created.
-	"postCreateCommand": "bash .devcontainer/post.sh",
+  // Uncomment the next line to run commands after the container is created.
+  "postCreateCommand": "bash .devcontainer/post.sh",
 
-	// Configure tool-specific properties.
-	"customizations": {
-		"vscode": {
-			"extensions": [
-				"esbenp.prettier-vscode",
-				"anthropic.claude-code",
-				"ms-azuretools.vscode-azurefunctions"
-			],
-			"settings": {
-				"editor.formatOnSave": true
-			}
-		}
-	},
+  // Configure tool-specific properties.
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "esbenp.prettier-vscode",
+        "anthropic.claude-code",
+        "ms-azuretools.vscode-azurefunctions",
+        "ms-azuretools.vscode-bicep"
+      ],
+      "settings": {
+        "editor.formatOnSave": true
+      }
+    }
+  },
 
-	// Uncomment to connect as an existing user other than the container default. More info: https://aka.ms/dev-containers-non-root.
-	"remoteUser": "node",
+  // Uncomment to connect as an existing user other than the container default. More info: https://aka.ms/dev-containers-non-root.
+  "remoteUser": "node",
 
-	// Add the Azure volumes to the container to keep credentials persistent.
-	"mounts": [
-		"source=azure,target=/home/node/.azure,type=volume",
-		"source=claude,target=/home/node/.claude,type=volume",
-		"source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
-	]
+  // Add the Azure volumes to the container to keep credentials persistent.
+  "mounts": [
+    "source=azure,target=/home/node/.azure,type=volume",
+    "source=claude,target=/home/node/.claude,type=volume",
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+  ]
 }
