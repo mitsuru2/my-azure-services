@@ -144,3 +144,6 @@ vite.config.ts.timestamp-*
 
 # Terraform
 .terraform/
+
+# Claude Code
+.claude/
