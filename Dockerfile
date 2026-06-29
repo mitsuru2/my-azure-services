@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1
-FROM node:26-trixie
+# バージョン変更時はREADME.mdのバージョン表記も変更すること。
+FROM node:24-trixie
 
 # OSツールのインストール
 RUN apt-get update && apt-get install -y \
