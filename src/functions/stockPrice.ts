@@ -58,15 +58,14 @@ async function fetchMutualFundNav(ticker: string, context: InvocationContext): P
   context.log(`Fetching mutual fund NAV for ticker: ${ticker}`);
   const res = await fetch(`${MUFG_API_BASE}/${ticker}`);
 
-  if (!res.ok) {
-    throw new Error(`MUFG API error: ${res.status} ${res.statusText}`);
-  }
-
   const data = (await res.json()) as MufgApiResponse;
 
-  if (data.result.status === 404 || data.datasets === null) {
+  if (data.result.status === 404) {
     context.log(`Mutual fund not found: ${ticker}`);
-    throw new Error(`Mutual fund not found: ${ticker}`);
+    throw new NotFoundError(`Mutual fund not found: ${ticker}`);
+  } else if (data.result.status !== 200 || !data.datasets || data.datasets.length === 0) {
+    context.log(`Error fetching mutual fund NAV for ${ticker}: ${data.result.errmsg}`);
+    throw new Error(`Error fetching mutual fund NAV for ${ticker}: ${data.result.errmsg}`);
   }
 
   const nav = data.datasets[0].nav;
@@ -80,7 +79,7 @@ async function fetchEquityPrice(symbol: string, context: InvocationContext): Pro
 
   if (quote === undefined) {
     context.log(`Symbol not found: ${symbol}`);
-    throw new Error(`Symbol not found: ${symbol}`);
+    throw new NotFoundError(`Symbol not found: ${symbol}`);
   }
 
   const price = quote.regularMarketPrice ?? 0;
@@ -144,6 +143,7 @@ export async function stockPrice(
       price = await fetchMutualFundNav(ticker, context);
     }
   } catch (error) {
+    // エラー処理: 株価取得に失敗した場合は、エラーメッセージを返す。
     context.log(`Error fetching price for ${market}:${ticker} - ${error}`);
     const response: StockPriceResponse = {
       market,
@@ -154,7 +154,7 @@ export async function stockPrice(
       error: 'Error fetching stock price',
     };
     return {
-      status: 500,
+      status: error instanceof NotFoundError ? 404 : 500,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(response),
     };
