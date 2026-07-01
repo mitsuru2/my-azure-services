@@ -109,6 +109,10 @@ resource functionApp 'Microsoft.Web/sites@2025-03-01' = {
           name: 'APPLICATIONINSIGHTS_AUTHENTICATION_STRING'
           value: 'Authorization=AAD'
         }
+        {
+          name: 'AzureWebJobsStorage__accountName'
+          value: storageAccount.name
+        }
       ]
     }
     functionAppConfig: {
