@@ -54,6 +54,43 @@ class NotFoundError extends Error {
 
 const MUFG_API_BASE = 'https://developer.am.mufg.jp/fund_information_latest/association_fund_cd';
 
+const YAHOO_FINANCE_QUOTE_BASE = 'https://finance.yahoo.co.jp/quote';
+
+async function fetchMutualFundNavByScraping(
+  ticker: string,
+  context: InvocationContext
+): Promise<number> {
+  const url = `${YAHOO_FINANCE_QUOTE_BASE}/${ticker}`;
+  context.log(`Fetching mutual fund NAV by scraping: ${url}`);
+
+  const res = await fetch(url);
+  if (!res.ok) {
+    if (res.status === 404) {
+      context.log(`Ticker not found: ${ticker}`);
+      throw new NotFoundError(`Ticker not found: ${ticker}`);
+    }
+    context.log(`Yahoo Finance scraping error: ${res.status}`);
+    throw new Error(`Yahoo Finance scraping error: ${res.status}`);
+  }
+
+  const html = await res.text();
+
+  // tickerコードを含む registerItem パターンから価格を抽出する
+  const match = html.match(new RegExp(`"registerItem":\\{"code":"${ticker}","price":"([0-9,]+)"`));
+  if (!match) {
+    context.log(`Price not found in page for ticker: ${ticker}`);
+    throw new NotFoundError(`Price not found in page for ticker: ${ticker}`);
+  }
+
+  const price = parseFloat(match[1].replace(/,/g, ''));
+  if (isNaN(price)) {
+    throw new Error(`Failed to parse price: ${match[1]}`);
+  }
+
+  context.log(`Fetched NAV for ${ticker}: ${price}`);
+  return price;
+}
+
 async function fetchMutualFundNav(ticker: string, context: InvocationContext): Promise<number> {
   context.log(`Fetching mutual fund NAV for ticker: ${ticker}`);
   const res = await fetch(`${MUFG_API_BASE}/${ticker}`);
@@ -132,8 +169,8 @@ export async function stockPrice(
         const symbol = market === 'TSE' && !ticker.endsWith('.T') ? `${ticker}.T` : ticker;
         price = await fetchEquityPrice(symbol, context);
       } else {
-        // 投資信託: MUFGのAPIを使用して最新のNAVを取得する。
-        price = await fetchMutualFundNav(ticker, context);
+        // 投資信託: Yahoo FinanceのページをスクレイピングしてNAVを取得する。
+        price = await fetchMutualFundNavByScraping(ticker, context);
       }
       context.log(`Returning price for ${market}:${ticker} = ${price}`);
     } catch (error) {
