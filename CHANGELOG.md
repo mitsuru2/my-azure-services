@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/mitsuru2/my-azure-services/compare/v1.2.0...v1.3.0) (2026-07-01)
+
+
+### Features
+
+* stock-price エンドポイントの追加。Azureへのデプロイ処理をコマンド化。 ([3cc0e50](https://github.com/mitsuru2/my-azure-services/commit/3cc0e508964a4b680dd494b1ddb09a1a5cd66b79))
+
 ## [1.2.0](https://github.com/mitsuru2/my-azure-services/compare/v1.1.0...v1.2.0) (2026-06-29)
 
 
