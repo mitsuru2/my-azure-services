@@ -4,14 +4,14 @@
   "description": "",
   "main": "dist/src/functions/*.js",
   "scripts": {
-    "build": "tsc",
+    "build": "npm run clean && tsc",
     "watch": "tsc -w",
-    "clean": "rimraf dist",
-    "prestart": "npm run clean && npm run build",
+    "clean": "rm -rf dist",
+    "prestart": "npm run build",
     "start": "func start",
     "test": "echo \"No tests yet...\"",
     "deploy": "npm run build && func azure functionapp publish ti7d2zarxv6ke-functions --typescript --no-build",
-    "azurite:start": "azurite --silent --location /workspaces/.azurite --debug /workspaces/.azurite/debug.log &",
+    "azurite:start": "bash scripts/azurite-start.sh",
     "azurite:stop": "pkill -f azurite"
   },
   "dependencies": {
@@ -22,7 +22,6 @@
   "devDependencies": {
     "@types/node": "18.x",
     "prettier": "^3.9.1",
-    "rimraf": "^5.0.0",
     "typescript": "^5.0.0"
   },
   "overrides": {
