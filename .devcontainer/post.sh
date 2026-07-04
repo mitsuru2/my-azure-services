@@ -6,6 +6,9 @@ sudo chown -R node:node /home/node/.azure
 sudo mkdir -p /home/node/.claude
 sudo chown -R node:node /home/node/.claude
 
+sudo mkdir -p /workspaces/.azurite
+sudo chown -R node:node /workspaces/.azurite
+
 echo ""
 echo "=== az account show ==="
 az account show
