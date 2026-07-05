@@ -10,6 +10,11 @@ export type DataRecords = {
   values: (string | number | boolean | null)[][];
 };
 
+export type AppendResult = {
+  range: string;
+  appendedRowCount: number;
+};
+
 export class GoogleSpreadSheet {
   private spreadsheetId: string | undefined;
   private auth: JWTClient | undefined;
@@ -58,17 +63,7 @@ export class GoogleSpreadSheet {
       throw new Error('sheetName must not be empty');
     }
 
-    const match = TITLE_ROW_RANGE_PATTERN.exec(titleRowRange);
-    if (!match) {
-      throw new Error('titleRowRange must be a single row A1 notation range, e.g. "A1:D1"');
-    }
-
-    const [, startColumn, startRowText, endColumn, endRowText] = match;
-    const startRow = Number(startRowText);
-    const endRow = Number(endRowText);
-    if (startRow !== endRow) {
-      throw new Error('titleRowRange must span exactly one row');
-    }
+    const { startColumn, endColumn, startRow } = parseTitleRowRange(titleRowRange);
 
     if (readRowNum < 0) {
       throw new Error('readRowNum must not be negative');
@@ -78,14 +73,7 @@ export class GoogleSpreadSheet {
 
     const range = buildRange(sheetName, startColumn, endColumn, startRow, rowNum);
 
-    const spreadsheet = await this.sheets.spreadsheets.get({
-      spreadsheetId: this.spreadsheetId,
-      fields: 'sheets.properties.title',
-    });
-    const sheetExists = spreadsheet.data.sheets?.some((sheet) => sheet.properties?.title === sheetName);
-    if (!sheetExists) {
-      throw new Error(`Sheet "${sheetName}" does not exist`);
-    }
+    await this.assertSheetExists(sheetName);
 
     const response = await this.sheets.spreadsheets.values.get({
       spreadsheetId: this.spreadsheetId,
@@ -98,12 +86,86 @@ export class GoogleSpreadSheet {
       throw new Error(`No data found for range "${range}"`);
     }
 
-    const trimmedValues = rowNum === 0 ? trimTrailingBlankRows(rawValues) : rawValues;
-
-    const values = trimmedValues.map((row) => padRow(row, columnCount));
+    const values = rawValues.map((row) => padRow(row, columnCount));
 
     return { values };
   }
+
+  async appendDataRecords(
+    sheetName: string,
+    titleRowRange: string,
+    data: DataRecords
+  ): Promise<AppendResult> {
+    if (!this.sheets || !this.spreadsheetId) {
+      throw new Error('GoogleSpreadSheet is not open. Call open() first');
+    }
+
+    if (!sheetName) {
+      throw new Error('sheetName must not be empty');
+    }
+
+    const { startColumn, endColumn, startRow } = parseTitleRowRange(titleRowRange);
+
+    if (data.values.some((row) => row.some((cell) => cell === undefined))) {
+      throw new Error('data.values must not contain undefined cells');
+    }
+
+    if (data.values.length === 0) {
+      return { range: '', appendedRowCount: 0 };
+    }
+
+    await this.assertSheetExists(sheetName);
+
+    // 追記先の行はGoogle側が検索範囲内の既存テーブルを検出して決定するため、下端を指定しない範囲を渡す
+    const searchRange = buildRange(sheetName, startColumn, endColumn, startRow, 0);
+
+    const response = await this.sheets.spreadsheets.values.append({
+      spreadsheetId: this.spreadsheetId,
+      range: searchRange,
+      valueInputOption: 'RAW', // USER_ENTEREDにすると "00123" のような文字列が数値123に変換されてしまうため
+      insertDataOption: 'OVERWRITE',
+      requestBody: { values: data.values },
+    });
+
+    const updatedRange = response.data.updates?.updatedRange;
+    const updatedRows = response.data.updates?.updatedRows;
+    if (!updatedRange || updatedRows === undefined) {
+      throw new Error('Failed to append data records: unexpected response from Sheets API');
+    }
+
+    return { range: updatedRange, appendedRowCount: updatedRows };
+  }
+
+  private async assertSheetExists(sheetName: string): Promise<void> {
+    const spreadsheet = await this.sheets!.spreadsheets.get({
+      spreadsheetId: this.spreadsheetId,
+      fields: 'sheets.properties.title',
+    });
+    const sheetExists = spreadsheet.data.sheets?.some((sheet) => sheet.properties?.title === sheetName);
+    if (!sheetExists) {
+      throw new Error(`Sheet "${sheetName}" does not exist`);
+    }
+  }
+}
+
+function parseTitleRowRange(titleRowRange: string): {
+  startColumn: string;
+  endColumn: string;
+  startRow: number;
+} {
+  const match = TITLE_ROW_RANGE_PATTERN.exec(titleRowRange);
+  if (!match) {
+    throw new Error('titleRowRange must be a single row A1 notation range, e.g. "A1:D1"');
+  }
+
+  const [, startColumn, startRowText, endColumn, endRowText] = match;
+  const startRow = Number(startRowText);
+  const endRow = Number(endRowText);
+  if (startRow !== endRow) {
+    throw new Error('titleRowRange must span exactly one row');
+  }
+
+  return { startColumn, endColumn, startRow };
 }
 
 function columnLetterToIndex(column: string): number {
@@ -129,14 +191,6 @@ function buildRange(
   }
   const endRow = startRow + rowNum - 1;
   return `${sheetName}!${startColumn}${startRow}:${endColumn}${endRow}`;
-}
-
-function trimTrailingBlankRows(rows: unknown[][]): unknown[][] {
-  const firstBlankIndex = rows.findIndex((row) => {
-    const primaryKey = row[0];
-    return primaryKey === null || primaryKey === undefined || primaryKey === '';
-  });
-  return firstBlankIndex === -1 ? rows : rows.slice(0, firstBlankIndex);
 }
 
 function padRow(row: unknown[], columnCount: number): (string | number | boolean | null)[] {

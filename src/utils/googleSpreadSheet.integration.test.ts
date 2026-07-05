@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import dockerNames from 'docker-names';
 import { GoogleSpreadSheet } from './googleSpreadSheet';
 
 // googleSpreadSheet.test.ts の TEST_SPREADSHEET_ID と同じテスト用スプレッドシート
@@ -96,6 +97,39 @@ describe.skipIf(!hasCredentials)('GoogleSpreadSheet (integration)', () => {
       await expect(sheet.readDataRecords('not_exist_sheet', 'A1:D1', 1)).rejects.toThrow(
         'Sheet "not_exist_sheet" does not exist'
       );
+
+      sheet.close();
+    });
+  });
+
+  describe('appendDataRecords', () => {
+    // タイトル行: timestamp, name, value, text
+    // 削除APIが無いため、テスト実行のたびに末尾へ行が追記されていく
+    const SHEET_NAME = 'append_test';
+
+    const openSheet = async (): Promise<GoogleSpreadSheet> => {
+      const sheet = new GoogleSpreadSheet();
+      await sheet.open(TEST_SPREADSHEET_ID);
+      return sheet;
+    };
+
+    it('1行分のデータをテーブル末尾に追記できる', async () => {
+      const sheet = await openSheet();
+
+      const timestamp = new Date().toISOString();
+      const name = dockerNames.getRandomName();
+      const value = Math.floor(Math.random() * 1000);
+      const text = String(value).padStart(3, '0');
+
+      const result = await sheet.appendDataRecords(SHEET_NAME, 'A1:D1', {
+        values: [[timestamp, name, value, text]],
+      });
+
+      expect(result.appendedRowCount).toBe(1);
+      expect(result.range).toMatch(new RegExp(`^${SHEET_NAME}!A\\d+:D\\d+$`));
+
+      const allRows = await sheet.readDataRecords(SHEET_NAME, 'A1:D1', 0);
+      expect(allRows.values[allRows.values.length - 1]).toEqual([timestamp, name, value, text]);
 
       sheet.close();
     });
