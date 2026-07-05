@@ -9,7 +9,7 @@
     "clean": "rm -rf dist",
     "prestart": "npm run build",
     "start": "func start",
-    "test": "vitest run",
+    "test": "vitest run --reporter=default",
     "deploy": "npm run build && func azure functionapp publish ti7d2zarxv6ke-functions --typescript --no-build",
     "azurite:start": "bash scripts/azurite-start.sh",
     "azurite:stop": "pkill -f azurite"

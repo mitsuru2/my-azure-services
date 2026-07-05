@@ -2,20 +2,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const TEST_SPREADSHEET_ID = '1S8SraJt0VFfoiIWCTz0wsVZIiA7ETW025CmMTcU2wyU';
 
-const { authorizeMock, JWTMock, sheetsMock, spreadsheetsGetMock } = vi.hoisted(() => {
-  const authorizeMock = vi.fn().mockResolvedValue(undefined);
-  const JWTMock = vi.fn().mockImplementation(function (
-    this: Record<string, unknown>,
-    options: Record<string, unknown>
-  ) {
-    Object.assign(this, options, { authorize: authorizeMock });
-  });
-  const spreadsheetsGetMock = vi.fn().mockResolvedValue({});
-  const sheetsMock = vi.fn().mockReturnValue({
-    spreadsheets: { get: spreadsheetsGetMock },
-  });
-  return { authorizeMock, JWTMock, sheetsMock, spreadsheetsGetMock };
-});
+const { authorizeMock, JWTMock, sheetsMock, spreadsheetsGetMock, valuesGetMock } = vi.hoisted(
+  () => {
+    const authorizeMock = vi.fn().mockResolvedValue(undefined);
+    const JWTMock = vi.fn().mockImplementation(function (
+      this: Record<string, unknown>,
+      options: Record<string, unknown>
+    ) {
+      Object.assign(this, options, { authorize: authorizeMock });
+    });
+    const spreadsheetsGetMock = vi.fn().mockResolvedValue({});
+    const valuesGetMock = vi.fn().mockResolvedValue({ data: {} });
+    const sheetsMock = vi.fn().mockReturnValue({
+      spreadsheets: { get: spreadsheetsGetMock, values: { get: valuesGetMock } },
+    });
+    return { authorizeMock, JWTMock, sheetsMock, spreadsheetsGetMock, valuesGetMock };
+  }
+);
 
 vi.mock('googleapis', () => ({
   google: {
@@ -100,6 +103,201 @@ describe('GoogleSpreadSheet', () => {
       await sheet.open('sheet-id');
 
       expect(() => sheet.close()).not.toThrow();
+    });
+  });
+
+  describe('readDataRecords', () => {
+    const SHEET_NAME = 'シート1';
+
+    const openSheet = async (): Promise<GoogleSpreadSheet> => {
+      process.env.GOOGLE_CLIENT_EMAIL = 'test@example.com';
+      process.env.GOOGLE_PRIVATE_KEY = 'private-key';
+
+      const sheet = new GoogleSpreadSheet();
+      await sheet.open(TEST_SPREADSHEET_ID);
+      return sheet;
+    };
+
+    it('open()を呼んでいない場合はエラーを投げる', async () => {
+      const sheet = new GoogleSpreadSheet();
+
+      await expect(sheet.readDataRecords(SHEET_NAME, 'A1:B1', 1)).rejects.toThrow(
+        'GoogleSpreadSheet is not open. Call open() first'
+      );
+    });
+
+    it('sheetNameが空文字列の場合はエラーを投げる', async () => {
+      const sheet = await openSheet();
+
+      await expect(sheet.readDataRecords('', 'A1:B1', 1)).rejects.toThrow(
+        'sheetName must not be empty'
+      );
+    });
+
+    it('titleRowRangeがA1形式でない場合はエラーを投げる', async () => {
+      const sheet = await openSheet();
+
+      await expect(sheet.readDataRecords(SHEET_NAME, 'invalid-range', 1)).rejects.toThrow(
+        'titleRowRange must be a single row A1 notation range, e.g. "A1:D1"'
+      );
+    });
+
+    it('titleRowRangeが複数行にまたがる場合はエラーを投げる', async () => {
+      const sheet = await openSheet();
+
+      await expect(sheet.readDataRecords(SHEET_NAME, 'A1:B2', 1)).rejects.toThrow(
+        'titleRowRange must span exactly one row'
+      );
+    });
+
+    it('readRowNumが負数の場合はエラーを投げる', async () => {
+      const sheet = await openSheet();
+
+      await expect(sheet.readDataRecords(SHEET_NAME, 'A1:B1', -1)).rejects.toThrow(
+        'readRowNum must not be negative'
+      );
+    });
+
+    it('指定したシートが存在しない場合はエラーを投げる', async () => {
+      const sheet = await openSheet();
+      spreadsheetsGetMock.mockResolvedValueOnce({
+        data: { sheets: [{ properties: { title: '別のシート' } }] },
+      });
+
+      await expect(sheet.readDataRecords(SHEET_NAME, 'A1:B1', 1)).rejects.toThrow(
+        `Sheet "${SHEET_NAME}" does not exist`
+      );
+    });
+
+    it('取得したデータが空の場合はエラーを投げる', async () => {
+      const sheet = await openSheet();
+      spreadsheetsGetMock.mockResolvedValueOnce({
+        data: { sheets: [{ properties: { title: SHEET_NAME } }] },
+      });
+      valuesGetMock.mockResolvedValueOnce({ data: {} });
+
+      await expect(sheet.readDataRecords(SHEET_NAME, 'A1:B1', 1)).rejects.toThrow(
+        /No data found for range/
+      );
+    });
+
+    it('readRowNum=1の場合、タイトル行のみのレンジを取得する', async () => {
+      const sheet = await openSheet();
+      spreadsheetsGetMock.mockResolvedValueOnce({
+        data: { sheets: [{ properties: { title: SHEET_NAME } }] },
+      });
+      valuesGetMock.mockResolvedValueOnce({ data: { values: [['col1', 'col2']] } });
+
+      const result = await sheet.readDataRecords(SHEET_NAME, 'A1:B1', 1);
+
+      expect(valuesGetMock).toHaveBeenCalledWith({
+        spreadsheetId: TEST_SPREADSHEET_ID,
+        range: `${SHEET_NAME}!A1:B1`,
+        valueRenderOption: 'UNFORMATTED_VALUE',
+      });
+      expect(result).toEqual({ values: [['col1', 'col2']] });
+    });
+
+    it('readRowNum>1の場合、開始行からreadRowNum分のレンジを取得する', async () => {
+      const sheet = await openSheet();
+      spreadsheetsGetMock.mockResolvedValueOnce({
+        data: { sheets: [{ properties: { title: SHEET_NAME } }] },
+      });
+      valuesGetMock.mockResolvedValueOnce({
+        data: { values: [['col1', 'col2'], ['a', 'b'], ['c', 'd']] },
+      });
+
+      await sheet.readDataRecords(SHEET_NAME, 'A1:B1', 3);
+
+      expect(valuesGetMock).toHaveBeenCalledWith({
+        spreadsheetId: TEST_SPREADSHEET_ID,
+        range: `${SHEET_NAME}!A1:B3`,
+        valueRenderOption: 'UNFORMATTED_VALUE',
+      });
+    });
+
+    it('readRowNumが非整数の場合は切り下げて整数として扱う', async () => {
+      const sheet = await openSheet();
+      spreadsheetsGetMock.mockResolvedValueOnce({
+        data: { sheets: [{ properties: { title: SHEET_NAME } }] },
+      });
+      valuesGetMock.mockResolvedValueOnce({ data: { values: [['col1', 'col2'], ['a', 'b']] } });
+
+      await sheet.readDataRecords(SHEET_NAME, 'A1:B1', 2.9);
+
+      expect(valuesGetMock).toHaveBeenCalledWith({
+        spreadsheetId: TEST_SPREADSHEET_ID,
+        range: `${SHEET_NAME}!A1:B2`,
+        valueRenderOption: 'UNFORMATTED_VALUE',
+      });
+    });
+
+    it('readRowNum=0の場合、終了行を省略したオープンレンジを取得する', async () => {
+      const sheet = await openSheet();
+      spreadsheetsGetMock.mockResolvedValueOnce({
+        data: { sheets: [{ properties: { title: SHEET_NAME } }] },
+      });
+      valuesGetMock.mockResolvedValueOnce({ data: { values: [['col1', 'col2'], ['a', 'b']] } });
+
+      await sheet.readDataRecords(SHEET_NAME, 'A1:B1', 0);
+
+      expect(valuesGetMock).toHaveBeenCalledWith({
+        spreadsheetId: TEST_SPREADSHEET_ID,
+        range: `${SHEET_NAME}!A1:B`,
+        valueRenderOption: 'UNFORMATTED_VALUE',
+      });
+    });
+
+    it('readRowNum=0の場合、全列が空の行が最初に出現した時点でそれ以降を切り捨てる', async () => {
+      const sheet = await openSheet();
+      spreadsheetsGetMock.mockResolvedValueOnce({
+        data: { sheets: [{ properties: { title: SHEET_NAME } }] },
+      });
+      valuesGetMock.mockResolvedValueOnce({
+        data: {
+          values: [
+            ['col1', 'col2'],
+            ['a', 'b'],
+            [],
+            ['c', 'd'],
+          ],
+        },
+      });
+
+      const result = await sheet.readDataRecords(SHEET_NAME, 'A1:B1', 0);
+
+      expect(result).toEqual({
+        values: [
+          ['col1', 'col2'],
+          ['a', 'b'],
+        ],
+      });
+    });
+
+    it('空のセルがある行はタイトル行の列数に合わせてnullで埋める', async () => {
+      const sheet = await openSheet();
+      spreadsheetsGetMock.mockResolvedValueOnce({
+        data: { sheets: [{ properties: { title: SHEET_NAME } }] },
+      });
+      valuesGetMock.mockResolvedValueOnce({
+        data: {
+          values: [
+            ['col1', 'col2', 'col3'],
+            ['a'],
+            ['b', 'c', 'd', 'e'],
+          ],
+        },
+      });
+
+      const result = await sheet.readDataRecords(SHEET_NAME, 'A1:C1', 3);
+
+      expect(result).toEqual({
+        values: [
+          ['col1', 'col2', 'col3'],
+          ['a', null, null],
+          ['b', 'c', 'd'],
+        ],
+      });
     });
   });
 });
