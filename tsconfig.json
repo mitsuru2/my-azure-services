@@ -9,5 +9,6 @@
     "strict": false,
     "esModuleInterop": true,
     "types": ["node"]
-  }
+  },
+  "exclude": ["node_modules", "**/*.test.ts"]
 }

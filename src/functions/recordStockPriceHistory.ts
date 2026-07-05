@@ -21,6 +21,30 @@ const recordStockPriceHistory: ActivityHandler = (input: string): string => {
 };
 df.app.activity(activityName, { handler: recordStockPriceHistory });
 
+interface StockCoreData {
+  assetClass: string;
+  symbol: string;
+  name: string;
+  currency: string;
+  market: string;
+}
+
+interface StockPriceRecordData extends StockCoreData {
+  securitiesCompanyName: string;
+  accountType: string;
+  accountName: string;
+  acquisitionUnitPrice?: number;
+  currentUnitPrice?: number;
+  holdingQuantity?: number;
+  marketValue: number;
+}
+
+const getTargetStockList: ActivityHandler = (input: string): string[] => {
+  // In a real-world scenario, this function would fetch the target stock list from a database or an API.
+  // For demonstration purposes, we return a static list of stock symbols.
+  return ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA'];
+};
+
 const recordStockPriceHistoryHttpStart: HttpHandler = async (
   request: HttpRequest,
   context: InvocationContext

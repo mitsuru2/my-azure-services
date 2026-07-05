@@ -147,3 +147,6 @@ vite.config.ts.timestamp-*
 
 # Claude Code
 .claude/
+
+# Local secret files.
+.devcontainer/secrets.env
