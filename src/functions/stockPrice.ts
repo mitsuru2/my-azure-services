@@ -7,14 +7,14 @@ const yf = new YahooFinance();
 // JIAA: Japan Investment Advisers Association
 // NYSE: New York Stock Exchange
 // NASDAQ: National Association of Securities Dealers Automated Quotations
-const MARKETS = ['TSE', 'JIAA', 'NYSE', 'NYSE_ARCA', 'NASDAQ'] as const;
-type Market = (typeof MARKETS)[number];
+export const MARKETS = ['TSE', 'JIAA', 'NYSE', 'NYSE_ARCA', 'NASDAQ'] as const;
+export type Market = (typeof MARKETS)[number];
 
-function isMarket(value: string): value is Market {
+export function isMarket(value: string): value is Market {
   return (MARKETS as readonly string[]).includes(value);
 }
 
-const MARKET_CURRENCY: Record<Market, string> = {
+export const MARKET_CURRENCY: Record<Market, string> = {
   TSE: 'JPY',
   JIAA: 'JPY',
   NYSE: 'USD',
@@ -45,7 +45,7 @@ interface MufgApiResponse {
   datasets: MufgDataset[] | null;
 }
 
-class NotFoundError extends Error {
+export class NotFoundError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'NotFoundError';
@@ -138,6 +138,20 @@ async function fetchEquityPrice(symbol: string, context: InvocationContext): Pro
   return price;
 }
 
+export async function getStockPrice(
+  market: Market,
+  ticker: string,
+  context: InvocationContext
+): Promise<number> {
+  if (market === 'JIAA') {
+    // 投資信託: Yahoo FinanceのページをスクレイピングしてNAVを取得する。
+    return fetchMutualFundNavByScraping(ticker, context);
+  }
+  // 株式: Yahoo FinanceのAPIを使用して最新の株価を取得する。
+  const symbol = market === 'TSE' && !ticker.endsWith('.T') ? `${ticker}.T` : ticker;
+  return fetchEquityPrice(symbol, context);
+}
+
 export async function stockPrice(
   request: HttpRequest,
   context: InvocationContext
@@ -162,16 +176,9 @@ export async function stockPrice(
   }
 
   // 株価取得
-  if (status === 200) {
+  if (status === 200 && isMarket(market)) {
     try {
-      if (market !== 'JIAA') {
-        // 株式: Yahoo FinanceのAPIを使用して最新の株価を取得する。
-        const symbol = market === 'TSE' && !ticker.endsWith('.T') ? `${ticker}.T` : ticker;
-        price = await fetchEquityPrice(symbol, context);
-      } else {
-        // 投資信託: Yahoo FinanceのページをスクレイピングしてNAVを取得する。
-        price = await fetchMutualFundNavByScraping(ticker, context);
-      }
+      price = await getStockPrice(market, ticker, context);
       context.log(`Returning price for ${market}:${ticker} = ${price}`);
     } catch (error) {
       // エラー処理: 株価取得に失敗した場合は、エラーメッセージを返す。

@@ -38,6 +38,8 @@
 
   // Add the Azure volumes to the container to keep credentials persistent.
   "mounts": [
+    // Uncomment the following line if you want to persist Azurite data between container rebuilds. This is not necessary if you are using a real Azure Storage account.
+    // "source=azurite,target=/workspaces/.azurite,type=volume",
     "source=azure,target=/home/node/.azure,type=volume",
     "source=claude,target=/home/node/.claude,type=volume"
   ]

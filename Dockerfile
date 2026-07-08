@@ -45,6 +45,9 @@ RUN (type -p wget >/dev/null || (sudo apt update && sudo apt install wget -y)) \
 	&& sudo apt update \
 	&& sudo apt install gh -y
 
+# Azuriteのインストール
+RUN npm install -g azurite@3.35.0
+
 # nodeユーザーをパスワード無しでsudoコマンド実行可能に設定
 RUN echo "node ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/node \
     && chmod 0440 /etc/sudoers.d/node

@@ -4,22 +4,30 @@
   "description": "",
   "main": "dist/src/functions/*.js",
   "scripts": {
-    "build": "tsc",
+    "build": "npm run clean && tsc",
     "watch": "tsc -w",
-    "clean": "rimraf dist",
-    "prestart": "npm run clean && npm run build",
+    "clean": "rm -rf dist",
+    "prestart": "npm run build",
     "start": "func start",
-    "test": "echo \"No tests yet...\"",
-    "deploy": "npm run build && func azure functionapp publish ti7d2zarxv6ke-functions --typescript --no-build"
+    "test": "vitest run --reporter=default",
+    "deploy": "npm run build && func azure functionapp publish ti7d2zarxv6ke-functions --typescript --no-build",
+    "azurite:start": "bash scripts/azurite-start.sh",
+    "azurite:stop": "pkill -f azurite"
   },
   "dependencies": {
     "@azure/functions": "^4.0.0",
+    "durable-functions": "^3.4.0",
+    "googleapis": "^173.0.0",
     "yahoo-finance2": "^3.15.3"
   },
   "devDependencies": {
-    "@types/node": "18.x",
+    "@types/node": "^24.13.2",
+    "docker-names": "^1.2.1",
     "prettier": "^3.9.1",
-    "rimraf": "^5.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.9"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   }
 }
