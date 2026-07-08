@@ -125,11 +125,59 @@ describe.skipIf(!hasCredentials)('GoogleSpreadSheet (integration)', () => {
         values: [[timestamp, name, value, text]],
       });
 
-      expect(result.appendedRowCount).toBe(1);
+      expect(result.rowCount).toBe(1);
       expect(result.range).toMatch(new RegExp(`^${SHEET_NAME}!A\\d+:D\\d+$`));
 
       const allRows = await sheet.readDataRecords(SHEET_NAME, 'A1:D1', 0);
       expect(allRows.values[allRows.values.length - 1]).toEqual([timestamp, name, value, text]);
+
+      sheet.close();
+    });
+  });
+
+  describe('updateDataRecords', () => {
+    // タイトル行: Property, Value
+    // Number, 0
+    // Alphabet, a
+    const SHEET_NAME = 'update_test';
+
+    const openSheet = async (): Promise<GoogleSpreadSheet> => {
+      const sheet = new GoogleSpreadSheet();
+      await sheet.open(TEST_SPREADSHEET_ID);
+      return sheet;
+    };
+
+    const incrementAlphabet = (alphabet: string): string =>
+      alphabet === 'z' ? 'a' : String.fromCharCode(alphabet.charCodeAt(0) + 1);
+
+    it('既存の数字とアルファベットを読み込み、インクリメントした値で上書きできる', async () => {
+      const sheet = await openSheet();
+
+      const before = await sheet.readDataRecords(SHEET_NAME, 'A1:B1', 0);
+      const currentNumber = before.values[1][1] as number;
+      const currentAlphabet = before.values[2][1] as string;
+
+      const nextNumber = currentNumber + 1;
+      const nextAlphabet = incrementAlphabet(currentAlphabet);
+
+      const result = await sheet.updateDataRecords(
+        SHEET_NAME,
+        'A1:B1',
+        {
+          values: [
+            ['Number', nextNumber],
+            ['Alphabet', nextAlphabet],
+          ],
+        },
+        1
+      );
+
+      expect(result.rowCount).toBe(2);
+      expect(result.range).toBe(`${SHEET_NAME}!A2:B3`);
+
+      const after = await sheet.readDataRecords(SHEET_NAME, 'A1:B1', 0);
+      expect(after.values[1]).toEqual(['Number', nextNumber]);
+      expect(after.values[2]).toEqual(['Alphabet', nextAlphabet]);
 
       sheet.close();
     });

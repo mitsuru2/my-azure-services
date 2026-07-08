@@ -6,14 +6,15 @@ const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
 
 const TITLE_ROW_RANGE_PATTERN = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/;
 
-export type DataRecords = {
+export interface DataRecords {
   values: (string | number | boolean | null)[][];
-};
+}
 
-export type AppendResult = {
+export interface AppendResult {
   range: string;
-  appendedRowCount: number;
-};
+  rowCount: number;
+}
+export type UpdateResult = AppendResult;
 
 export class GoogleSpreadSheet {
   private spreadsheetId: string | undefined;
@@ -111,7 +112,7 @@ export class GoogleSpreadSheet {
     }
 
     if (data.values.length === 0) {
-      return { range: '', appendedRowCount: 0 };
+      return { range: '', rowCount: 0 };
     }
 
     await this.assertSheetExists(sheetName);
@@ -133,7 +134,61 @@ export class GoogleSpreadSheet {
       throw new Error('Failed to append data records: unexpected response from Sheets API');
     }
 
-    return { range: updatedRange, appendedRowCount: updatedRows };
+    return { range: updatedRange, rowCount: updatedRows };
+  }
+
+  async updateDataRecords(
+    sheetName: string,
+    titleRowRange: string,
+    data: DataRecords,
+    startRow: number
+  ): Promise<UpdateResult> {
+    if (!this.sheets || !this.spreadsheetId) {
+      throw new Error('GoogleSpreadSheet is not open. Call open() first');
+    }
+
+    if (!sheetName) {
+      throw new Error('sheetName must not be empty');
+    }
+
+    const { startColumn, endColumn, startRow: titleRow } = parseTitleRowRange(titleRowRange);
+
+    if (data.values.some((row) => row.some((cell) => cell === undefined))) {
+      throw new Error('data.values must not contain undefined cells');
+    }
+
+    if (startRow < 0) {
+      throw new Error('startRow must not be negative');
+    }
+
+    if (data.values.length === 0) {
+      return { range: '', rowCount: 0 };
+    }
+
+    await this.assertSheetExists(sheetName);
+
+    const updateRange = buildRange(
+      sheetName,
+      startColumn,
+      endColumn,
+      titleRow + startRow,
+      data.values.length
+    );
+
+    const response = await this.sheets.spreadsheets.values.update({
+      spreadsheetId: this.spreadsheetId,
+      range: updateRange,
+      valueInputOption: 'RAW', // USER_ENTEREDにすると "00123" のような文字列が数値123に変換されてしまうため
+      requestBody: { values: data.values },
+    });
+
+    const updatedRange = response.data.updatedRange;
+    const updatedRows = response.data.updatedRows;
+    if (!updatedRange || updatedRows === undefined) {
+      throw new Error('Failed to update data records: unexpected response from Sheets API');
+    }
+
+    return { range: updatedRange, rowCount: updatedRows };
   }
 
   private async assertSheetExists(sheetName: string): Promise<void> {
@@ -141,7 +196,9 @@ export class GoogleSpreadSheet {
       spreadsheetId: this.spreadsheetId,
       fields: 'sheets.properties.title',
     });
-    const sheetExists = spreadsheet.data.sheets?.some((sheet) => sheet.properties?.title === sheetName);
+    const sheetExists = spreadsheet.data.sheets?.some(
+      (sheet) => sheet.properties?.title === sheetName
+    );
     if (!sheetExists) {
       throw new Error(`Sheet "${sheetName}" does not exist`);
     }

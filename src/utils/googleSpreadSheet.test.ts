@@ -9,6 +9,7 @@ const {
   spreadsheetsGetMock,
   valuesGetMock,
   valuesAppendMock,
+  valuesUpdateMock,
 } = vi.hoisted(() => {
   const authorizeMock = vi.fn().mockResolvedValue(undefined);
   const JWTMock = vi.fn().mockImplementation(function (
@@ -20,10 +21,11 @@ const {
   const spreadsheetsGetMock = vi.fn().mockResolvedValue({});
   const valuesGetMock = vi.fn().mockResolvedValue({ data: {} });
   const valuesAppendMock = vi.fn().mockResolvedValue({ data: {} });
+  const valuesUpdateMock = vi.fn().mockResolvedValue({ data: {} });
   const sheetsMock = vi.fn().mockReturnValue({
     spreadsheets: {
       get: spreadsheetsGetMock,
-      values: { get: valuesGetMock, append: valuesAppendMock },
+      values: { get: valuesGetMock, append: valuesAppendMock, update: valuesUpdateMock },
     },
   });
   return {
@@ -33,6 +35,7 @@ const {
     spreadsheetsGetMock,
     valuesGetMock,
     valuesAppendMock,
+    valuesUpdateMock,
   };
 });
 
@@ -351,7 +354,7 @@ describe('GoogleSpreadSheet', () => {
 
       const result = await sheet.appendDataRecords(SHEET_NAME, 'A1:B1', { values: [] });
 
-      expect(result).toEqual({ range: '', appendedRowCount: 0 });
+      expect(result).toEqual({ range: '', rowCount: 0 });
       expect(spreadsheetsGetMock).toHaveBeenCalledTimes(spreadsheetsGetCallsAfterOpen);
       expect(valuesAppendMock).not.toHaveBeenCalled();
     });
@@ -399,7 +402,7 @@ describe('GoogleSpreadSheet', () => {
         insertDataOption: 'OVERWRITE',
         requestBody: { values: [['a', 1]] },
       });
-      expect(result).toEqual({ range: `${SHEET_NAME}!A3:B3`, appendedRowCount: 1 });
+      expect(result).toEqual({ range: `${SHEET_NAME}!A3:B3`, rowCount: 1 });
     });
 
     it('複数行のデータを一括で追記する', async () => {
@@ -430,7 +433,167 @@ describe('GoogleSpreadSheet', () => {
           ],
         },
       });
-      expect(result).toEqual({ range: `${SHEET_NAME}!A3:B4`, appendedRowCount: 2 });
+      expect(result).toEqual({ range: `${SHEET_NAME}!A3:B4`, rowCount: 2 });
+    });
+  });
+
+  describe('updateDataRecords', () => {
+    const SHEET_NAME = 'シート1';
+
+    const openSheet = async (): Promise<GoogleSpreadSheet> => {
+      process.env.GOOGLE_CLIENT_EMAIL = 'test@example.com';
+      process.env.GOOGLE_PRIVATE_KEY = 'private-key';
+
+      const sheet = new GoogleSpreadSheet();
+      await sheet.open(TEST_SPREADSHEET_ID);
+      return sheet;
+    };
+
+    it('open()を呼んでいない場合はエラーを投げる', async () => {
+      const sheet = new GoogleSpreadSheet();
+
+      await expect(
+        sheet.updateDataRecords(SHEET_NAME, 'A1:B1', { values: [['a', 'b']] }, 1)
+      ).rejects.toThrow('GoogleSpreadSheet is not open. Call open() first');
+    });
+
+    it('sheetNameが空文字列の場合はエラーを投げる', async () => {
+      const sheet = await openSheet();
+
+      await expect(
+        sheet.updateDataRecords('', 'A1:B1', { values: [['a', 'b']] }, 1)
+      ).rejects.toThrow('sheetName must not be empty');
+    });
+
+    it('titleRowRangeがA1形式でない場合はエラーを投げる', async () => {
+      const sheet = await openSheet();
+
+      await expect(
+        sheet.updateDataRecords(SHEET_NAME, 'invalid-range', { values: [['a', 'b']] }, 1)
+      ).rejects.toThrow('titleRowRange must be a single row A1 notation range, e.g. "A1:D1"');
+    });
+
+    it('titleRowRangeが複数行にまたがる場合はエラーを投げる', async () => {
+      const sheet = await openSheet();
+
+      await expect(
+        sheet.updateDataRecords(SHEET_NAME, 'A1:B2', { values: [['a', 'b']] }, 1)
+      ).rejects.toThrow('titleRowRange must span exactly one row');
+    });
+
+    it('data.valuesにundefinedのセルが含まれる場合はエラーを投げる', async () => {
+      const sheet = await openSheet();
+
+      await expect(
+        sheet.updateDataRecords(
+          SHEET_NAME,
+          'A1:B1',
+          { values: [['a', undefined as unknown as string]] },
+          1
+        )
+      ).rejects.toThrow('data.values must not contain undefined cells');
+    });
+
+    it('startRowが負数の場合はエラーを投げる', async () => {
+      const sheet = await openSheet();
+
+      await expect(
+        sheet.updateDataRecords(SHEET_NAME, 'A1:B1', { values: [['a', 'b']] }, -1)
+      ).rejects.toThrow('startRow must not be negative');
+    });
+
+    it('data.valuesが空配列の場合は何もせず終了する', async () => {
+      const sheet = await openSheet();
+      const spreadsheetsGetCallsAfterOpen = spreadsheetsGetMock.mock.calls.length;
+
+      const result = await sheet.updateDataRecords(SHEET_NAME, 'A1:B1', { values: [] }, 1);
+
+      expect(result).toEqual({ range: '', rowCount: 0 });
+      expect(spreadsheetsGetMock).toHaveBeenCalledTimes(spreadsheetsGetCallsAfterOpen);
+      expect(valuesUpdateMock).not.toHaveBeenCalled();
+    });
+
+    it('指定したシートが存在しない場合はエラーを投げる', async () => {
+      const sheet = await openSheet();
+      spreadsheetsGetMock.mockResolvedValueOnce({
+        data: { sheets: [{ properties: { title: '別のシート' } }] },
+      });
+
+      await expect(
+        sheet.updateDataRecords(SHEET_NAME, 'A1:B1', { values: [['a', 'b']] }, 1)
+      ).rejects.toThrow(`Sheet "${SHEET_NAME}" does not exist`);
+    });
+
+    it('APIレスポンスにupdatedRangeが含まれない場合はエラーを投げる', async () => {
+      const sheet = await openSheet();
+      spreadsheetsGetMock.mockResolvedValueOnce({
+        data: { sheets: [{ properties: { title: SHEET_NAME } }] },
+      });
+      valuesUpdateMock.mockResolvedValueOnce({ data: {} });
+
+      await expect(
+        sheet.updateDataRecords(SHEET_NAME, 'A1:B1', { values: [['a', 'b']] }, 1)
+      ).rejects.toThrow('Failed to update data records: unexpected response from Sheets API');
+    });
+
+    it('startRowで指定した行から、タイトル行を0とした位置にRAWで上書きする', async () => {
+      const sheet = await openSheet();
+      spreadsheetsGetMock.mockResolvedValueOnce({
+        data: { sheets: [{ properties: { title: SHEET_NAME } }] },
+      });
+      valuesUpdateMock.mockResolvedValueOnce({
+        data: { updatedRange: `${SHEET_NAME}!A2:B2`, updatedRows: 1 },
+      });
+
+      const result = await sheet.updateDataRecords(
+        SHEET_NAME,
+        'A1:B1',
+        { values: [['a', 1]] },
+        1
+      );
+
+      expect(valuesUpdateMock).toHaveBeenCalledWith({
+        spreadsheetId: TEST_SPREADSHEET_ID,
+        range: `${SHEET_NAME}!A2:B2`,
+        valueInputOption: 'RAW',
+        requestBody: { values: [['a', 1]] },
+      });
+      expect(result).toEqual({ range: `${SHEET_NAME}!A2:B2`, rowCount: 1 });
+    });
+
+    it('複数行のデータを一括で上書きする', async () => {
+      const sheet = await openSheet();
+      spreadsheetsGetMock.mockResolvedValueOnce({
+        data: { sheets: [{ properties: { title: SHEET_NAME } }] },
+      });
+      valuesUpdateMock.mockResolvedValueOnce({
+        data: { updatedRange: `${SHEET_NAME}!A2:B3`, updatedRows: 2 },
+      });
+
+      const result = await sheet.updateDataRecords(
+        SHEET_NAME,
+        'A1:B1',
+        {
+          values: [
+            ['a', 1],
+            ['b', 2],
+          ],
+        },
+        1
+      );
+
+      expect(valuesUpdateMock).toHaveBeenCalledWith({
+        spreadsheetId: TEST_SPREADSHEET_ID,
+        range: `${SHEET_NAME}!A2:B3`,
+        valueInputOption: 'RAW',
+        requestBody: {
+          values: [
+            ['a', 1],
+            ['b', 2],
+          ],
+        },
+      });
+      expect(result).toEqual({ range: `${SHEET_NAME}!A2:B3`, rowCount: 2 });
     });
   });
 });
