@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/mitsuru2/my-azure-services/compare/v1.3.0...v1.4.0) (2026-07-08)
+
+
+### Features
+
+* 日時株価更新処理を追加。Azure Durable Functions 使用。 ([3f49d2a](https://github.com/mitsuru2/my-azure-services/commit/3f49d2a3d2a9720999159c0bc1155608b910d7c5))
+
 ## [1.3.0](https://github.com/mitsuru2/my-azure-services/compare/v1.2.0...v1.3.0) (2026-07-01)
 
 
