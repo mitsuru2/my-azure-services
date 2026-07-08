@@ -1,6 +1,15 @@
-import { app, HttpHandler, HttpRequest, HttpResponse, InvocationContext } from '@azure/functions';
+import {
+  app,
+  HttpHandler,
+  HttpRequest,
+  HttpResponse,
+  InvocationContext,
+  Timer,
+  TimerHandler,
+} from '@azure/functions';
 import * as df from 'durable-functions';
 import { ActivityHandler, OrchestrationContext, OrchestrationHandler } from 'durable-functions';
+import { isLastDayOfMonth, jstTimeToUtcCronExpression } from '../utils/date';
 import { DataRecords, GoogleSpreadSheet } from '../utils/googleSpreadSheet';
 import { getStockPrice, isMarket, MARKET_CURRENCY } from './stockPrice';
 
@@ -65,9 +74,9 @@ const updateExchangeRateSheet: ActivityHandler = async (
   const SHEET_NAME = '当月為替レート';
   const TITLE_ROW_RANGE = 'A1:B1';
 
-  const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
+  const spreadsheetId = process.env.STOCK_PRICE_HISTORY_SPREADSHEET_ID;
   if (!spreadsheetId) {
-    throw new Error('GOOGLE_SPREADSHEET_ID must be set');
+    throw new Error('STOCK_PRICE_HISTORY_SPREADSHEET_ID must be set');
   }
 
   const sheet = new GoogleSpreadSheet();
@@ -87,9 +96,41 @@ const updateExchangeRateSheet: ActivityHandler = async (
 df.app.activity('updateExchangeRateSheet', { handler: updateExchangeRateSheet });
 
 //------------------------------------------------------------------------------
+// 為替レート履歴追記
+//------------------------------------------------------------------------------
+const appendExchangeRateHistory: ActivityHandler = async (
+  input: ExchangeRateRecordData,
+  context: InvocationContext
+): Promise<void> => {
+  const SHEET_NAME = '月次為替レート履歴';
+  const TITLE_ROW_RANGE = 'A1:B1';
+
+  const spreadsheetId = process.env.STOCK_PRICE_HISTORY_SPREADSHEET_ID;
+  if (!spreadsheetId) {
+    throw new Error('STOCK_PRICE_HISTORY_SPREADSHEET_ID must be set');
+  }
+
+  const sheet = new GoogleSpreadSheet();
+  await sheet.open(spreadsheetId);
+
+  try {
+    const result = await sheet.appendDataRecords(SHEET_NAME, TITLE_ROW_RANGE, {
+      values: [[input.date, input.usdToJpy]],
+    });
+    context.log(
+      `Appended exchange rate history: range=${result.range}, rowCount=${result.rowCount}`
+    );
+  } finally {
+    sheet.close();
+  }
+};
+df.app.activity('appendExchangeRateHistory', { handler: appendExchangeRateHistory });
+
+//------------------------------------------------------------------------------
 // 保有株式情報取得
 //------------------------------------------------------------------------------
 interface StockPriceRecordData {
+  date?: string; // 日付
   assetClass: string; // 資産クラス
   symbol: string; // 銘柄コード, ティッカー
   name: string; // 銘柄名
@@ -179,9 +220,9 @@ const getTargetStockList: ActivityHandler = async (
   const SHEET_NAME = '当月資産状況';
   const TITLE_ROW_RANGE = 'A1:J1';
 
-  const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
+  const spreadsheetId = process.env.STOCK_PRICE_HISTORY_SPREADSHEET_ID;
   if (!spreadsheetId) {
-    throw new Error('GOOGLE_SPREADSHEET_ID must be set');
+    throw new Error('STOCK_PRICE_HISTORY_SPREADSHEET_ID must be set');
   }
 
   const sheet = new GoogleSpreadSheet();
@@ -259,16 +300,7 @@ df.app.activity('updateStockPrice', { handler: updateStockPrice });
 //------------------------------------------------------------------------------
 // 株価シート更新
 //------------------------------------------------------------------------------
-
 /**
- * 株価シートを更新する
- * オーケストレーター関数からは、複数の株価更新アクティビティを呼び出した後に、fan-in でこの関数を呼び出す。
- *
- * シート名: 当月資産状況
- * タイトル行レンジ: A1:K1
- * 更新開始行: タイトル行の次の行から入力配列全件を上書きする
- *
- * ワークシート上の列とStockPriceRecordDataとの対応関係
  * - A列: assetClass
  * - B列: securitiesCompanyName
  * - C列: symbol
@@ -288,9 +320,9 @@ const updateStockPriceSheet: ActivityHandler = async (
   const SHEET_NAME = '当月資産状況';
   const TITLE_ROW_RANGE = 'A1:K1';
 
-  const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
+  const spreadsheetId = process.env.STOCK_PRICE_HISTORY_SPREADSHEET_ID;
   if (!spreadsheetId) {
-    throw new Error('GOOGLE_SPREADSHEET_ID must be set');
+    throw new Error('STOCK_PRICE_HISTORY_SPREADSHEET_ID must be set');
   }
 
   const values = input.map((record) => [
@@ -318,6 +350,48 @@ const updateStockPriceSheet: ActivityHandler = async (
   }
 };
 df.app.activity('updateStockPriceSheet', { handler: updateStockPriceSheet });
+
+//------------------------------------------------------------------------------
+// 株価履歴シート追記
+//------------------------------------------------------------------------------
+const appendStockPriceHistory: ActivityHandler = async (
+  input: StockPriceRecordData[],
+  context: InvocationContext
+): Promise<void> => {
+  const SHEET_NAME = '月次資産状況履歴';
+  const TITLE_ROW_RANGE = 'A1:L1';
+
+  const spreadsheetId = process.env.STOCK_PRICE_HISTORY_SPREADSHEET_ID;
+  if (!spreadsheetId) {
+    throw new Error('STOCK_PRICE_HISTORY_SPREADSHEET_ID must be set');
+  }
+
+  const values = input.map((record) => [
+    record.date ?? null,
+    record.assetClass,
+    record.securitiesCompanyName,
+    record.symbol,
+    record.name,
+    record.market ?? null,
+    record.accountName,
+    record.accountType,
+    record.currency,
+    record.holdingQuantity ?? null,
+    record.acquisitionUnitPrice ?? null,
+    record.currentUnitPrice ?? null,
+  ]);
+
+  const sheet = new GoogleSpreadSheet();
+  await sheet.open(spreadsheetId);
+
+  try {
+    const result = await sheet.appendDataRecords(SHEET_NAME, TITLE_ROW_RANGE, { values });
+    context.log(`Appended stock price history: range=${result.range}, rowCount=${result.rowCount}`);
+  } finally {
+    sheet.close();
+  }
+};
+df.app.activity('appendStockPriceHistory', { handler: appendStockPriceHistory });
 
 //------------------------------------------------------------------------------
 // オーケストレーター関数
@@ -348,9 +422,45 @@ const recordStockPriceHistoryOrchestrator: OrchestrationHandler = function* (
   const updatedStockList: StockPriceRecordData[] = yield context.df.Task.all(updateStockPriceTasks);
   yield context.df.callActivity('updateStockPriceSheet', updatedStockList);
 
+  //
+  // 3. 月末処理
+  //
+  if (isLastDayOfMonth(now)) {
+    yield context.df.callActivity('appendExchangeRateHistory', {
+      date,
+      usdToJpy: exchangeRate.rate,
+    });
+    const datedStockList = updatedStockList.map((record) => ({ ...record, date }));
+    yield context.df.callActivity('appendStockPriceHistory', datedStockList);
+  }
+
   return { date, exchangeRate };
 };
 df.app.orchestration('record-stock-price-history', recordStockPriceHistoryOrchestrator);
+
+//------------------------------------------------------------------------------
+// タイマートリガー
+//------------------------------------------------------------------------------
+const triggerTimeJst = process.env.STOCK_PRICE_HISTORY_TRIGGER_TIME_JST;
+if (!triggerTimeJst) {
+  throw new Error('STOCK_PRICE_HISTORY_TRIGGER_TIME_JST must be set');
+}
+
+const recordStockPriceHistoryTimerStart: TimerHandler = async (
+  _myTimer: Timer,
+  context: InvocationContext
+): Promise<void> => {
+  const client = df.getClient(context);
+  const instanceId: string = await client.startNew('record-stock-price-history');
+
+  context.log(`Started orchestration with ID = '${instanceId}'.`);
+};
+
+app.timer('recordStockPriceHistoryTimerStart', {
+  schedule: jstTimeToUtcCronExpression(triggerTimeJst),
+  extraInputs: [df.input.durableClient()],
+  handler: recordStockPriceHistoryTimerStart,
+});
 
 //------------------------------------------------------------------------------
 // HTTPエンドポイント
