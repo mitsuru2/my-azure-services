@@ -5,6 +5,8 @@
 個人用のWeb APIのリポジトリ。用途を限定せず必要になったAPIをどんどん追加する予定。
 Azure Functions (従量課金プラン) へのホストを想定しているため、長時間の処理は実装しないこと。
 
+API仕様の詳細は [openapi.yaml](openapi.yaml) を参照。
+
 ## 開発環境
 
 以下の構成のDockerコンテナ環境。VS CodeのDevContainer拡張またはGitHub Codespacesでの利用を想定。

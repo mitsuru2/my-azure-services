@@ -1,0 +1,232 @@
+openapi: 3.0.3
+info:
+  title: my-azure-services
+  description: 個人用のWeb APIリポジトリ。用途を限定せず必要になったAPIを追加する。
+  version: 1.5.0
+servers:
+  - url: https://ti7d2zarxv6ke-functions.azurewebsites.net/api
+    description: 本番環境 (Azure Functions)
+  - url: http://localhost:7071/api
+    description: ローカル開発環境
+
+paths:
+  /health:
+    get:
+      summary: ヘルスチェック
+      operationId: getHealth
+      tags: [health]
+      responses:
+        '200':
+          description: 正常
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+    post:
+      summary: ヘルスチェック
+      operationId: postHealth
+      tags: [health]
+      responses:
+        '200':
+          description: 正常
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /stock-price:
+    get:
+      summary: 株価・投資信託基準価額を取得する
+      description: |
+        `market` に応じて取得方法が異なる。
+        - `JIAA` (投資信託): Yahoo!ファイナンスをスクレイピングして基準価額を取得。
+        - その他 (株式): Yahoo Finance API で最新株価を取得。`TSE` の場合、tickerに `.T` サフィックスがなければ自動付与。
+      operationId: getStockPrice
+      tags: [stock-price]
+      parameters:
+        - name: market
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Market'
+        - name: ticker
+          in: query
+          required: true
+          description: 銘柄コード・ティッカーシンボル
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockPriceResponse'
+        '400':
+          description: パラメータ不正 (market/ticker未指定、またはmarketが非対応)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockPriceResponse'
+        '404':
+          description: 銘柄が見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockPriceResponse'
+        '500':
+          description: 外部API/スクレイピングエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockPriceResponse'
+
+  /transactions:
+    post:
+      summary: 証券会社の取引明細CSVから配当金・分配金を抽出し、配当履歴シートに記録する
+      description: |
+        入力CSVの「区分」が `利金・配当金` (円貨) または `分配金` (外貨) の行のみを対象とする。
+        既に記録済み (rawLineのSHA-256ハッシュが一致) のレコードは重複追記しない。
+        銘柄名・銘柄コードは「当月資産状況」シートを参照して補完する。
+      operationId: postTransactions
+      tags: [transactions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionsRequest'
+      responses:
+        '200':
+          description: 処理成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  addedCount:
+                    type: integer
+                    description: 新規追記された配当履歴の件数
+                required: [addedCount]
+        '400':
+          description: リクエスト不正 (JSON形式、format/account/csv不正、CSVフォーマット不正)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: サーバーエラー (環境変数未設定、スプレッドシートアクセスエラー等)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /orchestrators/{orchestratorName}:
+    post:
+      summary: Durable Functions オーケストレーターを起動する
+      description: |
+        現状 `record-stock-price-history` (為替レート・保有株式の株価更新、月末は履歴シートへの追記) のみ利用可能。
+        通常はタイマートリガーで自動起動されるが、本エンドポイントで手動起動もできる。
+        レスポンスはDurable Functions標準のステータス確認用リンク集 (statusQueryGetUri等) を含む。
+      operationId: startOrchestrator
+      tags: [orchestrators]
+      parameters:
+        - name: orchestratorName
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [record-stock-price-history]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              description: オーケストレーターへの入力 (record-stock-price-historyでは未使用)
+      responses:
+        '202':
+          description: オーケストレーション起動受付
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  statusQueryGetUri:
+                    type: string
+                  sendEventPostUri:
+                    type: string
+                  terminatePostUri:
+                    type: string
+                  purgeHistoryDeleteUri:
+                    type: string
+                  restartPostUri:
+                    type: string
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        product:
+          type: string
+        version:
+          type: string
+        status:
+          type: string
+          enum: [healthy]
+      required: [product, version, status]
+
+    Market:
+      type: string
+      description: |
+        TSE: 東京証券取引所 (JPY) / JIAA: 投資信託 (JPY) / NYSE, NYSE_ARCA, NASDAQ: 米国市場 (USD)
+      enum: [TSE, JIAA, NYSE, NYSE_ARCA, NASDAQ]
+
+    StockPriceResponse:
+      type: object
+      properties:
+        market:
+          type: string
+        ticker:
+          type: string
+        price:
+          type: number
+          nullable: true
+        currency:
+          type: string
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+        error:
+          type: string
+          nullable: true
+      required: [market, ticker, timestamp]
+
+    TransactionsRequest:
+      type: object
+      properties:
+        format:
+          type: string
+          description: 証券会社のCSVフォーマット種別
+          enum: [SBI]
+        account:
+          type: string
+          description: 口座名義 (1〜20文字)
+          minLength: 1
+          maxLength: 20
+        csv:
+          type: string
+          description: 取引明細CSV (UTF-8テキストをBase64エンコードしたもの)
+          format: byte
+      required: [format, account, csv]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
