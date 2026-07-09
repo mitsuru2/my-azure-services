@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/mitsuru2/my-azure-services/compare/v1.4.0...v1.5.0) (2026-07-09)
+
+
+### Features
+
+* 配当金履歴情報のインポート処理追加 ([3f9ede4](https://github.com/mitsuru2/my-azure-services/commit/3f9ede45bc8fcad3fc8f85ac88df1727e62043ea))
+
 ## [1.4.0](https://github.com/mitsuru2/my-azure-services/compare/v1.3.0...v1.4.0) (2026-07-08)
 
 
