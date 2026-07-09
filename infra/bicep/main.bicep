@@ -222,8 +222,8 @@ resource functionAppRoleAssignment 'Microsoft.Authorization/roleAssignments@2022
 // IAM Role Assignments for Storage Account
 //------------------------------------------------------------------------------
 var storageBlobDataOwnerRoleId = 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b'
-// var storageQueueDataContributorRoleId = '974c5e8b-45b9-4653-ba55-5f855dd0fb88'
-// var storageTableDataContributorRoleId = '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3'
+var storageQueueDataContributorRoleId = '974c5e8b-45b9-4653-ba55-5f855dd0fb88'
+var storageTableDataContributorRoleId = '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3'
 
 // for GitHub App
 resource storageBlobRoleAssignmentForGitHub 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -242,6 +242,34 @@ resource storageBlobRoleAssignmentForFunctionApp 'Microsoft.Authorization/roleAs
   scope: storageAccount
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataOwnerRoleId)
+    principalId: functionApp.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Durable Functions の Task Hub (コントロールキュー/ワークアイテムキュー) 利用に必要
+resource storageQueueRoleAssignmentForFunctionApp 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storageAccount.id, functionApp.id, storageQueueDataContributorRoleId)
+  scope: storageAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      storageQueueDataContributorRoleId
+    )
+    principalId: functionApp.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Durable Functions の Task Hub (History/Instances テーブル) 利用に必要
+resource storageTableRoleAssignmentForFunctionApp 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storageAccount.id, functionApp.id, storageTableDataContributorRoleId)
+  scope: storageAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      storageTableDataContributorRoleId
+    )
     principalId: functionApp.identity.principalId
     principalType: 'ServicePrincipal'
   }
