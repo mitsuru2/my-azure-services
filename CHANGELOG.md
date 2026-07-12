@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/mitsuru2/my-azure-services/compare/v1.5.0...v1.5.1) (2026-07-12)
+
+
+### Bug Fixes
+
+* NISA非課税配当を処理できない不具合を修正 ([d68c079](https://github.com/mitsuru2/my-azure-services/commit/d68c07965fd978220e494b186ba48455f357e397))
+
 ## [1.5.0](https://github.com/mitsuru2/my-azure-services/compare/v1.4.0...v1.5.0) (2026-07-09)
 
 
