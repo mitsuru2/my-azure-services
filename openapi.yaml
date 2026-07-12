@@ -4,13 +4,13 @@ info:
   description: 個人用のWeb APIリポジトリ。用途を限定せず必要になったAPIを追加する。
   version: 1.5.0
 servers:
-  - url: https://ti7d2zarxv6ke-functions.azurewebsites.net/api
+  - url: https://ti7d2zarxv6ke-functions.azurewebsites.net
     description: 本番環境 (Azure Functions)
-  - url: http://localhost:7071/api
+  - url: http://localhost:7071
     description: ローカル開発環境
 
 paths:
-  /health:
+  /api/health:
     get:
       summary: ヘルスチェック
       operationId: getHealth
@@ -34,7 +34,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
 
-  /stock-price:
+  /api/stock-price:
     get:
       summary: 株価・投資信託基準価額を取得する
       description: |
@@ -81,13 +81,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/StockPriceResponse'
 
-  /transactions:
+  /api/transactions:
     post:
       summary: 証券会社の取引明細CSVから配当金・分配金を抽出し、配当履歴シートに記録する
       description: |
         入力CSVの「区分」が `利金・配当金` (円貨) または `分配金` (外貨) の行のみを対象とする。
         既に記録済み (rawLineのSHA-256ハッシュが一致) のレコードは重複追記しない。
         銘柄名・銘柄コードは「当月資産状況」シートを参照して補完する。
+
+        処理はDurable Functionsのオーケストレーターとして非同期に実行される。
+        本エンドポイントは通常は処理の起動のみを行い、`202` レスポンスの `statusQueryGetUri` を
+        ポーリングして完了 (`runtimeStatus` が `Completed`/`Failed`/`Terminated`) を待つ。
+        ただし処理が短時間で完了した場合は、ポーリングを待たずに `200` で処理結果
+        (`{ addedCount: number }`) をそのまま返すことがある。
+        `202` の場合、ポーリングで得られる完了レスポンスの `output` にも同様に
+        `{ addedCount: number }` が格納される。
       operationId: postTransactions
       tags: [transactions]
       requestBody:
@@ -98,16 +106,22 @@ paths:
               $ref: '#/components/schemas/TransactionsRequest'
       responses:
         '200':
-          description: 処理成功
+          description: 処理完了 (短時間で同期的に完了した場合)
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  addedCount:
-                    type: integer
-                    description: 新規追記された配当履歴の件数
-                required: [addedCount]
+                $ref: '#/components/schemas/TransactionsCompletedResponse'
+              example:
+                addedCount: 3
+        '202':
+          description: 処理起動受付 (非同期実行中、ポーリングが必要)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrchestrationStartResponse'
+              example:
+                id: dummy-instance-id
+                statusQueryGetUri: http://localhost:7071/api/transactions/status/dummy-instance-id
         '400':
           description: リクエスト不正 (JSON形式、format/account/csv不正、CSVフォーマット不正)
           content:
@@ -121,7 +135,40 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /orchestrators/{orchestratorName}:
+  /api/transactions/status/{instanceId}:
+    get:
+      summary: (モック専用) transactions処理のステータス確認
+      description: |
+        実際のAzure Functions本番環境には存在しないパス。
+        `statusQueryGetUri` が指す先はDurable Functionsのランタイムが動的に発行するURLのため、
+        本ドキュメント上では固定パスとして定義していない。
+        ローカルのPrismモックサーバーが `statusQueryGetUri` (固定ダミーURL) に対して
+        応答を返せるようにするためだけに用意した仮のエンドポイント。
+      operationId: getTransactionsStatusMock
+      tags: [transactions]
+      parameters:
+        - name: instanceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 処理完了 (モック固定値)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrchestrationStatusResponse'
+              example:
+                name: postTransactions
+                instanceId: dummy-instance-id
+                runtimeStatus: Completed
+                createdTime: '2026-07-12T00:00:00Z'
+                lastUpdatedTime: '2026-07-12T00:00:05Z'
+                output:
+                  addedCount: 3
+
+  /api/orchestrators/{orchestratorName}:
     post:
       summary: Durable Functions オーケストレーターを起動する
       description: |
@@ -150,20 +197,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  id:
-                    type: string
-                  statusQueryGetUri:
-                    type: string
-                  sendEventPostUri:
-                    type: string
-                  terminatePostUri:
-                    type: string
-                  purgeHistoryDeleteUri:
-                    type: string
-                  restartPostUri:
-                    type: string
+                $ref: '#/components/schemas/OrchestrationStartResponse'
 
 components:
   schemas:
@@ -224,9 +258,69 @@ components:
           format: byte
       required: [format, account, csv]
 
+    TransactionsCompletedResponse:
+      type: object
+      description: transactions処理が同期的に完了した場合の結果。
+      properties:
+        addedCount:
+          type: integer
+          description: 配当履歴シートに追記された件数
+      required: [addedCount]
+
     ErrorResponse:
       type: object
       properties:
         error:
           type: string
       required: [error]
+
+    OrchestrationStartResponse:
+      type: object
+      description: Durable Functions オーケストレーター起動レスポンス。
+      properties:
+        id:
+          type: string
+        statusQueryGetUri:
+          type: string
+          description: 処理状況 (OrchestrationStatusResponse) を取得するためのURL。
+        sendEventPostUri:
+          type: string
+        terminatePostUri:
+          type: string
+        purgeHistoryDeleteUri:
+          type: string
+        restartPostUri:
+          type: string
+      required: [id, statusQueryGetUri]
+
+    RuntimeStatus:
+      type: string
+      enum: [Pending, Running, Completed, Failed, Terminated]
+
+    OrchestrationStatusResponse:
+      type: object
+      description: |
+        `statusQueryGetUri` をGETした際のDurable Functions標準ステータスレスポンス。
+        `runtimeStatus` が `Completed`/`Failed`/`Terminated` になるまでポーリングする。
+      properties:
+        name:
+          type: string
+        instanceId:
+          type: string
+        runtimeStatus:
+          $ref: '#/components/schemas/RuntimeStatus'
+        input:
+          description: オーケストレーターへの入力。
+        customStatus:
+          description: オーケストレーターが任意に設定するカスタムステータス。
+        output:
+          description: |
+            完了時の出力。/transactions の場合は `{ addedCount: number }`。
+            Failed時はエラーメッセージを含む。
+        createdTime:
+          type: string
+          format: date-time
+        lastUpdatedTime:
+          type: string
+          format: date-time
+      required: [name, instanceId, runtimeStatus, createdTime, lastUpdatedTime]

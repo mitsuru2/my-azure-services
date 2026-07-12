@@ -122,11 +122,12 @@ export function extractNameAndSymbol(
   currency: 'JPY' | 'USD',
   description: string
 ): { name: string; symbol: string } {
+  const cleanedDescription = description.replace(/（NISA：非課税）/g, '');
   if (currency === 'JPY') {
-    const name = description.replace(/^株式配当金\s*/, '').trim();
+    const name = cleanedDescription.replace(/^株式配当金\s*/, '').trim();
     return { name, symbol: '' };
   }
-  const match = description.trim().match(/^(\S+)\s+銘柄名:(.*)$/);
+  const match = cleanedDescription.trim().match(/^(\S+)\s+銘柄名:(.*)$/);
   if (!match) {
     return { name: '', symbol: '' };
   }
