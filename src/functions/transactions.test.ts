@@ -162,6 +162,49 @@ describe('parseTransactionRows', () => {
       amount: 10000,
     });
   });
+
+  it('parses SBI_BANK withdrawal rows even when the unused income column is "0" instead of empty', () => {
+    const csv = [
+      '日付,内容,出金金額(円),入金金額(円)',
+      '"2026/06/18","コンビニATM出金","5000","0"',
+    ].join('\n');
+    const lines = splitCsvLines(csv);
+    const headerRowIndex = findTransactionHeaderRowIndex(lines, 'SBI_BANK');
+    const rows = parseTransactionRows(lines, headerRowIndex, 'SBI_BANK');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      date: '2026/06/18',
+      transactionType: '出金',
+      description: 'コンビニATM出金',
+      amount: 5000,
+    });
+  });
+
+  it('parses SBI_BANK amounts containing thousands-separator commas within quoted fields', () => {
+    const csv = [
+      '"日付","内容","出金金額(円)","入金金額(円)","残高(円)","メモ"',
+      '"2026/07/28","ＳＢＩハイブリッド預金","150,000",,"0","-"',
+      '"2026/07/28","振込＊タカハシ　ミツル",,"150,000","150,000","-"',
+      '"2026/06/01","振込＊タカハシ　ミツル","4,000,000",,"0","-"',
+      '"2026/06/01","ＳＢＩハイブリッド預金",,"4,000,000","4,000,000","-"',
+    ].join('\n');
+    const lines = splitCsvLines(csv);
+    const headerRowIndex = findTransactionHeaderRowIndex(lines, 'SBI_BANK');
+    const rows = parseTransactionRows(lines, headerRowIndex, 'SBI_BANK');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({
+      date: '2026/07/28',
+      transactionType: '入金',
+      description: '振込＊タカハシ　ミツル',
+      amount: 150000,
+    });
+    expect(rows[1]).toMatchObject({
+      date: '2026/06/01',
+      transactionType: '出金',
+      description: '振込＊タカハシ　ミツル',
+      amount: 4000000,
+    });
+  });
 });
 
 describe('extractNameAndSymbol', () => {

@@ -75,9 +75,49 @@ interface TransactionRow {
   amount: number;
 }
 
-// フィールドがダブルクォートで囲まれた単純なカンマ区切り形式であることを前提とした軽量パーサー。
+// ダブルクォートで囲まれたフィールド内のカンマ(例: "4,000,000")を区切り文字として
+// 誤分割しないようにするパーサー。クォート内の空白(例: " SHLD ...")はトリムしない。
 function parseCsvLine(line: string): string[] {
-  return line.split(',').map((field) => field.trim().replace(/^"|"$/g, ''));
+  const fields: string[] = [];
+  const len = line.length;
+  let i = 0;
+  while (i <= len) {
+    while (line[i] === ' ' || line[i] === '\t') {
+      i++;
+    }
+    let field = '';
+    if (line[i] === '"') {
+      i++;
+      while (i < len) {
+        if (line[i] === '"' && line[i + 1] === '"') {
+          field += '"';
+          i += 2;
+        } else if (line[i] === '"') {
+          i++;
+          break;
+        } else {
+          field += line[i];
+          i++;
+        }
+      }
+      while (line[i] === ' ' || line[i] === '\t') {
+        i++;
+      }
+    } else {
+      while (i < len && line[i] !== ',') {
+        field += line[i];
+        i++;
+      }
+      field = field.trim();
+    }
+    fields.push(field);
+    if (line[i] === ',') {
+      i++;
+    } else {
+      break;
+    }
+  }
+  return fields;
 }
 
 export function splitCsvLines(csv: string): string[] {
@@ -187,10 +227,12 @@ function parseTransactionRowsSBIBank(
       continue;
     }
 
-    // 入出金タイプと金額を判定
-    const transactionType = fields[incomeIndex] ? '入金' : '出金';
-    const amountStr = transactionType === '入金' ? fields[incomeIndex] : fields[outcomeIndex];
-    const amount = Number((amountStr ?? '0').replace(/,/g, ''));
+    // 入出金タイプと金額を判定(未使用側の列が""ではなく"0"になっている明細もあるため、
+    // 文字列の真偽値ではなく実際の金額で判定する)
+    const outcomeAmount = Number((fields[outcomeIndex] ?? '0').replace(/,/g, '')) || 0;
+    const incomeAmount = Number((fields[incomeIndex] ?? '0').replace(/,/g, '')) || 0;
+    const transactionType = outcomeAmount !== 0 ? '出金' : '入金';
+    const amount = transactionType === '出金' ? outcomeAmount : incomeAmount;
 
     rows.push({
       rawLine,
