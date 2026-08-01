@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { GoogleSpreadSheet } from '../utils/googleSpreadSheet';
+import { dateStringToSheetsSerial } from '../utils/date';
 
 export const TRANSACTION_FORMAT_TYPE = ['SBI', 'SBI_BANK'] as const;
 export type TransactionFormatType = (typeof TRANSACTION_FORMAT_TYPE)[number];
@@ -344,7 +345,7 @@ function appendNewDividendRecords(
     candidates,
     (record) => [
       record.id,
-      record.date,
+      dateStringToSheetsSerial(record.date),
       record.securitiesCompanyName,
       record.symbol,
       record.name,
@@ -366,7 +367,7 @@ function appendNewCashFlowRecords(
     candidates,
     (record) => [
       record.id,
-      record.date,
+      dateStringToSheetsSerial(record.date),
       record.transactionType,
       record.securitiesCompanyName,
       record.accountHolderName,
