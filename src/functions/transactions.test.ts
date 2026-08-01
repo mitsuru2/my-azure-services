@@ -46,6 +46,7 @@ const SBI_BANK_CSV = [
   '"2026/06/17","ATM出金","10000",""',
   '"2026/06/18","国税","","500"',
   '"2026/06/19","利息","","1"',
+  '"2026/06/20","地方税","","500"',
 ].join('\n');
 
 describe('isSupportedFormat', () => {
@@ -146,7 +147,7 @@ describe('parseTransactionRows', () => {
     expect(rows).toHaveLength(3);
   });
 
-  it('parses SBI_BANK data rows, excluding transfers to the hybrid deposit account, 国税, and 利息', () => {
+  it('parses SBI_BANK data rows, excluding transfers to the hybrid deposit account, 国税, 利息, and 地方税', () => {
     const lines = splitCsvLines(SBI_BANK_CSV);
     const headerRowIndex = findTransactionHeaderRowIndex(lines, 'SBI_BANK');
     const rows = parseTransactionRows(lines, headerRowIndex, 'SBI_BANK');

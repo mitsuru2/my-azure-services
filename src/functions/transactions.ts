@@ -220,11 +220,12 @@ function parseTransactionRowsSBIBank(lines: string[], headerRowIndex: number): T
     }
     const fields = parseCsvLine(rawLine);
 
-    // SBIハイブリッド預金への振替、国税(源泉徴収)、利息は除外
+    // SBIハイブリッド預金への振替、国税(源泉徴収)、利息、地方税は除外
     if (
       fields[descriptionIndex] === 'ＳＢＩハイブリッド預金' ||
       fields[descriptionIndex] === '国税' ||
-      fields[descriptionIndex] === '利息'
+      fields[descriptionIndex] === '利息' ||
+      fields[descriptionIndex] === '地方税'
     ) {
       continue;
     }
