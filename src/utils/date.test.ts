@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isLastDayOfMonth, jstTimeToUtcCronExpression } from './date';
+import { dateStringToSheetsSerial, isLastDayOfMonth, jstTimeToUtcCronExpression } from './date';
 
 describe('isLastDayOfMonth', () => {
   it('returns true for the last day of a 31-day month', () => {
@@ -43,5 +43,26 @@ describe('jstTimeToUtcCronExpression', () => {
   it('throws for an invalid time format', () => {
     expect(() => jstTimeToUtcCronExpression('25:00')).toThrow();
     expect(() => jstTimeToUtcCronExpression('9999')).toThrow();
+  });
+});
+
+describe('dateStringToSheetsSerial', () => {
+  it('converts a date string to the matching Google Sheets serial value', () => {
+    expect(dateStringToSheetsSerial('2020/01/01')).toBe(43831);
+  });
+
+  it('increments by one for each following day', () => {
+    expect(dateStringToSheetsSerial('2026/06/16') - dateStringToSheetsSerial('2026/06/15')).toBe(
+      1
+    );
+  });
+
+  it('accepts single-digit months and days', () => {
+    expect(dateStringToSheetsSerial('2026/6/5')).toBe(dateStringToSheetsSerial('2026/06/05'));
+  });
+
+  it('throws for an invalid date format', () => {
+    expect(() => dateStringToSheetsSerial('2026-06-15')).toThrow();
+    expect(() => dateStringToSheetsSerial('not a date')).toThrow();
   });
 });
