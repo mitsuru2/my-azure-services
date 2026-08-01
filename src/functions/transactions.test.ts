@@ -39,9 +39,20 @@ const USD_CSV = [
   '"2026/05/11","入金","-","-","入出金振替","0","188636.00"',
 ].join('\n');
 
+const SBI_BANK_CSV = [
+  '日付,内容,出金金額(円),入金金額(円)',
+  '"2026/06/15","給与振込","","300000"',
+  '"2026/06/16","ＳＢＩハイブリッド預金","50000",""',
+  '"2026/06/17","ATM出金","10000",""',
+].join('\n');
+
 describe('isSupportedFormat', () => {
   it('accepts SBI', () => {
     expect(isSupportedFormat('SBI')).toBe(true);
+  });
+
+  it('accepts SBI_BANK', () => {
+    expect(isSupportedFormat('SBI_BANK')).toBe(true);
   });
 
   it('rejects unsupported formats', () => {
@@ -63,37 +74,46 @@ describe('decodeBase64Csv', () => {
 
 describe('detectCurrency', () => {
   it('detects JPY from a 円貨入出金明細 statement', () => {
-    expect(detectCurrency(splitCsvLines(JPY_CSV))).toBe('JPY');
+    expect(detectCurrency(splitCsvLines(JPY_CSV), 'SBI')).toBe('JPY');
   });
 
   it('detects USD from a 外貨入出金明細 statement', () => {
-    expect(detectCurrency(splitCsvLines(USD_CSV))).toBe('USD');
+    expect(detectCurrency(splitCsvLines(USD_CSV), 'SBI')).toBe('USD');
   });
 
   it('throws ValidationError when the title row does not match', () => {
-    expect(() => detectCurrency(['', 'something else'])).toThrow(ValidationError);
+    expect(() => detectCurrency(['', 'something else'], 'SBI')).toThrow(ValidationError);
+  });
+
+  it('always detects JPY for SBI_BANK regardless of content', () => {
+    expect(detectCurrency(splitCsvLines(SBI_BANK_CSV), 'SBI_BANK')).toBe('JPY');
   });
 });
 
 describe('findTransactionHeaderRowIndex', () => {
   it('finds the 入出金日 header row within the JPY statement', () => {
-    expect(findTransactionHeaderRowIndex(splitCsvLines(JPY_CSV))).toBe(9);
+    expect(findTransactionHeaderRowIndex(splitCsvLines(JPY_CSV), 'SBI')).toBe(9);
   });
 
   it('finds the 入出金日 header row within the USD statement', () => {
-    expect(findTransactionHeaderRowIndex(splitCsvLines(USD_CSV))).toBe(6);
+    expect(findTransactionHeaderRowIndex(splitCsvLines(USD_CSV), 'SBI')).toBe(6);
+  });
+
+  it('finds the 日付 header row within the SBI_BANK statement', () => {
+    expect(findTransactionHeaderRowIndex(splitCsvLines(SBI_BANK_CSV), 'SBI_BANK')).toBe(0);
   });
 
   it('throws ValidationError when no header row is found within 15 rows', () => {
     const lines = new Array(20).fill('"x","y"');
-    expect(() => findTransactionHeaderRowIndex(lines)).toThrow(ValidationError);
+    expect(() => findTransactionHeaderRowIndex(lines, 'SBI')).toThrow(ValidationError);
   });
 });
 
 describe('parseTransactionRows', () => {
   it('parses JPY data rows including non-target rows', () => {
     const lines = splitCsvLines(JPY_CSV);
-    const rows = parseTransactionRows(lines, findTransactionHeaderRowIndex(lines));
+    const headerRowIndex = findTransactionHeaderRowIndex(lines, 'SBI');
+    const rows = parseTransactionRows(lines, headerRowIndex, 'SBI');
     expect(rows).toHaveLength(3);
     expect(rows[0]).toMatchObject({
       date: '2026/06/30',
@@ -106,7 +126,8 @@ describe('parseTransactionRows', () => {
 
   it('parses USD data rows', () => {
     const lines = splitCsvLines(USD_CSV);
-    const rows = parseTransactionRows(lines, findTransactionHeaderRowIndex(lines));
+    const headerRowIndex = findTransactionHeaderRowIndex(lines, 'SBI');
+    const rows = parseTransactionRows(lines, headerRowIndex, 'SBI');
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({
       date: '2026/07/08',
@@ -118,8 +139,28 @@ describe('parseTransactionRows', () => {
 
   it('stops at the first blank line after the header', () => {
     const lines = splitCsvLines(JPY_CSV + '\n\n"2026/01/01","入金","利金・配当金","x","0","1"');
-    const rows = parseTransactionRows(lines, findTransactionHeaderRowIndex(lines));
+    const headerRowIndex = findTransactionHeaderRowIndex(lines, 'SBI');
+    const rows = parseTransactionRows(lines, headerRowIndex, 'SBI');
     expect(rows).toHaveLength(3);
+  });
+
+  it('parses SBI_BANK data rows, excluding transfers to the hybrid deposit account', () => {
+    const lines = splitCsvLines(SBI_BANK_CSV);
+    const headerRowIndex = findTransactionHeaderRowIndex(lines, 'SBI_BANK');
+    const rows = parseTransactionRows(lines, headerRowIndex, 'SBI_BANK');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({
+      date: '2026/06/15',
+      transactionType: '入金',
+      description: '給与振込',
+      amount: 300000,
+    });
+    expect(rows[1]).toMatchObject({
+      date: '2026/06/17',
+      transactionType: '出金',
+      description: 'ATM出金',
+      amount: 10000,
+    });
   });
 });
 

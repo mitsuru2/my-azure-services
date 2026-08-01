@@ -2,27 +2,37 @@ import { createHash } from 'crypto';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { GoogleSpreadSheet } from '../utils/googleSpreadSheet';
 
-export const SUPPORTED_FORMATS = ['SBI'] as const;
-export type TransactionFormat = (typeof SUPPORTED_FORMATS)[number];
+export const TRANSACTION_FORMAT_TYPE = ['SBI', 'SBI_BANK'] as const;
+export type TransactionFormatType = (typeof TRANSACTION_FORMAT_TYPE)[number];
 
-export function isSupportedFormat(value: string): value is TransactionFormat {
-  return (SUPPORTED_FORMATS as readonly string[]).includes(value);
+export const CURRENCY_TYPE = ['JPY', 'USD'] as const;
+export type CurrencyType = (typeof CURRENCY_TYPE)[number];
+
+export function isSupportedFormat(value: string): value is TransactionFormatType {
+  return (TRANSACTION_FORMAT_TYPE as readonly string[]).includes(value);
 }
 
-const SECURITIES_COMPANY_NAME: Record<TransactionFormat, string> = {
+const SECURITIES_COMPANY_NAME: Record<TransactionFormatType, string> = {
   SBI: 'SBI証券',
+  SBI_BANK: 'ドコモSMTBネット銀行',
 };
 
 const ACCOUNT_NAME_MAX_LENGTH = 20;
 
 // 円貨明細の「区分」は"利金・配当金"、外貨明細の「区分」は"分配金"となる。それ以外(源泉徴収・振替等)は対象外。
-const TARGET_TRANSACTION_TYPES = new Set(['利金・配当金', '分配金']);
+const TARGET_TRANSACTION_TYPES = new Set(['利金・配当金', '分配金', '入金', '出金']);
 
 const HEADER_SEARCH_MAX_ROWS = 15;
-const TRANSACTION_DATE_COLUMN_NAME = '入出金日';
+const TRANSACTION_DATE_COLUMN_NAME: Record<TransactionFormatType, string> = {
+  SBI: '入出金日',
+  SBI_BANK: '日付',
+};
 
 const DIVIDEND_HISTORY_SHEET_NAME = '配当履歴';
 const DIVIDEND_HISTORY_TITLE_ROW_RANGE = 'A1:H1';
+
+const CASH_FLOW_HISTORY_SHEET_NAME = '入出金履歴';
+const CASH_FLOW_HISTORY_TITLE_ROW_RANGE = 'A1:I1';
 
 const STOCK_STATUS_SHEET_NAME = '当月資産状況';
 const STOCK_STATUS_TITLE_ROW_RANGE = 'A1:J1';
@@ -42,7 +52,19 @@ export interface DividendRecord {
   name: string;
   account: string;
   amount: number;
-  currency: 'JPY' | 'USD';
+  currency: CurrencyType;
+}
+
+export interface CashFlowRecord {
+  id: string;
+  date: string;
+  transactionType: string;
+  securitiesCompanyName: string;
+  accountHolderName: string;
+  accountType: string;
+  amount: number;
+  currency: CurrencyType;
+  note: string;
 }
 
 interface TransactionRow {
@@ -67,33 +89,59 @@ export function decodeBase64Csv(csv: string): string {
   return Buffer.from(csv, 'base64').toString('utf8');
 }
 
-export function detectCurrency(lines: string[]): 'JPY' | 'USD' {
-  const titleLine = (lines[1] ?? '').trim();
-  if (titleLine === '円貨入出金明細') {
+export function detectCurrency(lines: string[], format: TransactionFormatType): CurrencyType {
+  if (format == 'SBI') {
+    const titleLine = (lines[1] ?? '').trim();
+    if (titleLine === '円貨入出金明細') {
+      return 'JPY';
+    }
+    if (titleLine === '外貨入出金明細') {
+      return 'USD';
+    }
+    throw new ValidationError(
+      `2行目1列目は "円貨入出金明細" または "外貨入出金明細" である必要があります: "${titleLine}"`
+    );
+  } else if (format == 'SBI_BANK') {
+    // 住信SBIネット銀行の場合は常に JPY を返す。
     return 'JPY';
+  } else {
+    throw new Error(`Logic error. Format validation doesn't work.`);
   }
-  if (titleLine === '外貨入出金明細') {
-    return 'USD';
-  }
-  throw new ValidationError(
-    `2行目1列目は "円貨入出金明細" または "外貨入出金明細" である必要があります: "${titleLine}"`
-  );
 }
 
-export function findTransactionHeaderRowIndex(lines: string[]): number {
+export function findTransactionHeaderRowIndex(
+  lines: string[],
+  format: TransactionFormatType
+): number {
+  const pattern = TRANSACTION_DATE_COLUMN_NAME[format];
+
   for (let i = 0; i < Math.min(lines.length, HEADER_SEARCH_MAX_ROWS); i++) {
-    if (parseCsvLine(lines[i])[0] === TRANSACTION_DATE_COLUMN_NAME) {
+    if (parseCsvLine(lines[i])[0] === pattern) {
       return i;
     }
   }
   throw new ValidationError(
-    `"${TRANSACTION_DATE_COLUMN_NAME}" ヘッダー行が最初の${HEADER_SEARCH_MAX_ROWS}行以内に見つかりません`
+    `"${pattern}" ヘッダー行が最初の${HEADER_SEARCH_MAX_ROWS}行以内に見つかりません`
   );
 }
 
-export function parseTransactionRows(lines: string[], headerRowIndex: number): TransactionRow[] {
+export function parseTransactionRows(
+  lines: string[],
+  headerRowIndex: number,
+  format: TransactionFormatType
+): TransactionRow[] {
+  if (format == 'SBI') {
+    return parseTransactionRowsSBI(lines, headerRowIndex);
+  } else if (format == 'SBI_BANK') {
+    return parseTransactionRowsSBIBank(lines, headerRowIndex);
+  } else {
+    throw new Error(`Logic error. Format validation doesn't work.`);
+  }
+}
+
+function parseTransactionRowsSBI(lines: string[], headerRowIndex: number): TransactionRow[] {
   const header = parseCsvLine(lines[headerRowIndex]);
-  const dateIndex = header.indexOf('入出金日');
+  const dateIndex = header.indexOf(TRANSACTION_DATE_COLUMN_NAME.SBI);
   const typeIndex = header.indexOf('区分');
   const descriptionIndex = header.indexOf('摘要');
   const depositIndex = header.indexOf('入金額');
@@ -116,10 +164,49 @@ export function parseTransactionRows(lines: string[], headerRowIndex: number): T
   return rows;
 }
 
+function parseTransactionRowsSBIBank(
+  lines: string[],
+  headerRowIndex: number
+): TransactionRow[] {
+  const header = parseCsvLine(lines[headerRowIndex]);
+  const dateIndex = header.indexOf(TRANSACTION_DATE_COLUMN_NAME.SBI_BANK);
+  const outcomeIndex = header.indexOf('出金金額(円)');
+  const incomeIndex = header.indexOf('入金金額(円)');
+  const descriptionIndex = header.indexOf('内容');
+
+  const rows: TransactionRow[] = [];
+  for (let i = headerRowIndex + 1; i < lines.length; i++) {
+    const rawLine = lines[i];
+    if (!rawLine.trim()) {
+      break;
+    }
+    const fields = parseCsvLine(rawLine);
+
+    // SBIハイブリッド預金への振替は除外
+    if (fields[descriptionIndex] === 'ＳＢＩハイブリッド預金') {
+      continue;
+    }
+
+    // 入出金タイプと金額を判定
+    const transactionType = fields[incomeIndex] ? '入金' : '出金';
+    const amountStr = transactionType === '入金' ? fields[incomeIndex] : fields[outcomeIndex];
+    const amount = Number((amountStr ?? '0').replace(/,/g, ''));
+
+    rows.push({
+      rawLine,
+      date: fields[dateIndex] ?? '',
+      transactionType,
+      description: fields[descriptionIndex] ?? '',
+      amount,
+    });
+  }
+  return rows;
+}
+
 // 円貨: "株式配当金 XXX" → 銘柄名はXXX。銘柄IDは当月資産状況シートを銘柄名で検索して取得する。
 // 外貨: " SHLD 銘柄名:GLX防衛テックETF" → 先頭トークンが銘柄ID(ティッカー)。銘柄名は当月資産状況シートをティッカーで検索して取得する。
 export function extractNameAndSymbol(
-  currency: 'JPY' | 'USD',
+  currency: CurrencyType,
   description: string
 ): { name: string; symbol: string } {
   const cleanedDescription = description.replace(/（NISA：非課税）/g, '');
@@ -172,9 +259,12 @@ async function lookupStockNameAndSymbol(
   return { nameToSymbol, symbolToName };
 }
 
-async function appendNewDividendRecords(
+async function appendNewRecords<T extends { id: string }>(
   spreadsheetId: string,
-  candidates: DividendRecord[]
+  sheetName: string,
+  titleRowRange: string,
+  candidates: T[],
+  toRow: (record: T) => (string | number)[]
 ): Promise<number> {
   if (candidates.length === 0) {
     return 0;
@@ -183,11 +273,7 @@ async function appendNewDividendRecords(
   const sheet = new GoogleSpreadSheet();
   await sheet.open(spreadsheetId);
   try {
-    const { values } = await sheet.readDataRecords(
-      DIVIDEND_HISTORY_SHEET_NAME,
-      DIVIDEND_HISTORY_TITLE_ROW_RANGE,
-      0
-    );
+    const { values } = await sheet.readDataRecords(sheetName, titleRowRange, 0);
     const existingIds = new Set(values.slice(1).map((row) => String(row[0] ?? '')));
 
     const newRecords = candidates.filter((record) => !existingIds.has(record.id));
@@ -195,23 +281,59 @@ async function appendNewDividendRecords(
       return 0;
     }
 
-    await sheet.appendDataRecords(DIVIDEND_HISTORY_SHEET_NAME, DIVIDEND_HISTORY_TITLE_ROW_RANGE, {
-      values: newRecords.map((record) => [
-        record.id,
-        record.date,
-        record.securitiesCompanyName,
-        record.symbol,
-        record.name,
-        record.account,
-        record.amount,
-        record.currency,
-      ]),
+    await sheet.appendDataRecords(sheetName, titleRowRange, {
+      values: newRecords.map(toRow),
     });
 
     return newRecords.length;
   } finally {
     sheet.close();
   }
+}
+
+function appendNewDividendRecords(
+  spreadsheetId: string,
+  candidates: DividendRecord[]
+): Promise<number> {
+  return appendNewRecords(
+    spreadsheetId,
+    DIVIDEND_HISTORY_SHEET_NAME,
+    DIVIDEND_HISTORY_TITLE_ROW_RANGE,
+    candidates,
+    (record) => [
+      record.id,
+      record.date,
+      record.securitiesCompanyName,
+      record.symbol,
+      record.name,
+      record.account,
+      record.amount,
+      record.currency,
+    ]
+  );
+}
+
+function appendNewCashFlowRecords(
+  spreadsheetId: string,
+  candidates: CashFlowRecord[]
+): Promise<number> {
+  return appendNewRecords(
+    spreadsheetId,
+    CASH_FLOW_HISTORY_SHEET_NAME,
+    CASH_FLOW_HISTORY_TITLE_ROW_RANGE,
+    candidates,
+    (record) => [
+      record.id,
+      record.date,
+      record.transactionType,
+      record.securitiesCompanyName,
+      record.accountHolderName,
+      record.accountType,
+      record.amount,
+      record.currency,
+      record.note,
+    ]
+  );
 }
 
 function errorResponse(status: number, error: string): HttpResponseInit {
@@ -238,7 +360,7 @@ export async function transactions(
   const { format, account, csv } = body;
 
   if (!format || !isSupportedFormat(format)) {
-    return errorResponse(400, `format must be one of: ${SUPPORTED_FORMATS.join(', ')}`);
+    return errorResponse(400, `format must be one of: ${TRANSACTION_FORMAT_TYPE.join(', ')}`);
   }
   if (!account || account.length < 1 || account.length > ACCOUNT_NAME_MAX_LENGTH) {
     return errorResponse(
@@ -252,11 +374,11 @@ export async function transactions(
 
   const lines = splitCsvLines(decodeBase64Csv(csv));
 
-  let currency: 'JPY' | 'USD';
+  let currency: CurrencyType;
   let headerRowIndex: number;
   try {
-    currency = detectCurrency(lines);
-    headerRowIndex = findTransactionHeaderRowIndex(lines);
+    currency = detectCurrency(lines, format);
+    headerRowIndex = findTransactionHeaderRowIndex(lines, format);
   } catch (error) {
     if (error instanceof ValidationError) {
       return errorResponse(400, error.message);
@@ -264,7 +386,7 @@ export async function transactions(
     throw error;
   }
 
-  const transactionRows = parseTransactionRows(lines, headerRowIndex).filter((row) =>
+  const transactionRows = parseTransactionRows(lines, headerRowIndex, format).filter((row) =>
     TARGET_TRANSACTION_TYPES.has(row.transactionType)
   );
 
@@ -275,27 +397,46 @@ export async function transactions(
   }
 
   try {
-    const { nameToSymbol, symbolToName } = await lookupStockNameAndSymbol(spreadsheetId);
+    let addedCount: number;
 
-    const candidates: DividendRecord[] = transactionRows.map((row) => {
-      const extracted = extractNameAndSymbol(currency, row.description);
-      const name = currency === 'JPY' ? extracted.name : (symbolToName.get(extracted.symbol) ?? '');
-      const symbol =
-        currency === 'JPY' ? (nameToSymbol.get(extracted.name) ?? '') : extracted.symbol;
+    if (format === 'SBI') {
+      const { nameToSymbol, symbolToName } = await lookupStockNameAndSymbol(spreadsheetId);
 
-      return {
+      const candidates: DividendRecord[] = transactionRows.map((row) => {
+        const extracted = extractNameAndSymbol(currency, row.description);
+        const name =
+          currency === 'JPY' ? extracted.name : (symbolToName.get(extracted.symbol) ?? '');
+        const symbol =
+          currency === 'JPY' ? (nameToSymbol.get(extracted.name) ?? '') : extracted.symbol;
+
+        return {
+          id: generateId(row.rawLine),
+          date: row.date,
+          securitiesCompanyName: SECURITIES_COMPANY_NAME[format],
+          symbol,
+          name,
+          account,
+          amount: row.amount,
+          currency,
+        };
+      });
+
+      addedCount = await appendNewDividendRecords(spreadsheetId, candidates);
+    } else {
+      const candidates: CashFlowRecord[] = transactionRows.map((row) => ({
         id: generateId(row.rawLine),
         date: row.date,
-        securitiesCompanyName: SECURITIES_COMPANY_NAME[format],
-        symbol,
-        name,
-        account,
+        transactionType: row.transactionType,
+        securitiesCompanyName: 'SBI証券',
+        accountHolderName: account,
+        accountType: '一般',
         amount: row.amount,
         currency,
-      };
-    });
+        note: '',
+      }));
 
-    const addedCount = await appendNewDividendRecords(spreadsheetId, candidates);
+      addedCount = await appendNewCashFlowRecords(spreadsheetId, candidates);
+    }
 
     return {
       status: 200,
