@@ -9,7 +9,7 @@ import {
 } from '@azure/functions';
 import * as df from 'durable-functions';
 import { ActivityHandler, OrchestrationContext, OrchestrationHandler } from 'durable-functions';
-import { isLastDayOfMonth, jstTimeToUtcCronExpression } from '../utils/date';
+import { dateStringToSheetsSerial, isLastDayOfMonth, jstTimeToUtcCronExpression } from '../utils/date';
 import { DataRecords, GoogleSpreadSheet } from '../utils/googleSpreadSheet';
 import { getStockPrice, isMarket, MARKET_CURRENCY } from './stockPrice';
 
@@ -86,7 +86,7 @@ const updateExchangeRateSheet: ActivityHandler = async (
     await sheet.updateDataRecords(
       SHEET_NAME,
       TITLE_ROW_RANGE,
-      { values: [[input.date, input.usdToJpy]] },
+      { values: [[dateStringToSheetsSerial(input.date), input.usdToJpy]] },
       1
     );
   } finally {
@@ -115,7 +115,7 @@ const appendExchangeRateHistory: ActivityHandler = async (
 
   try {
     const result = await sheet.appendDataRecords(SHEET_NAME, TITLE_ROW_RANGE, {
-      values: [[input.date, input.usdToJpy]],
+      values: [[dateStringToSheetsSerial(input.date), input.usdToJpy]],
     });
     context.log(
       `Appended exchange rate history: range=${result.range}, rowCount=${result.rowCount}`
@@ -329,7 +329,7 @@ const updateStockPriceSheet: ActivityHandler = async (
   }
 
   const values = input.map((record) => [
-    record.date ?? null,
+    record.date ? dateStringToSheetsSerial(record.date) : null,
     record.assetClass,
     record.securitiesCompanyName,
     record.symbol,
@@ -431,7 +431,7 @@ const appendStockPriceHistory: ActivityHandler = async (
   }
 
   const values = input.map((record) => [
-    record.date ?? null,
+    record.date ? dateStringToSheetsSerial(record.date) : null,
     record.assetClass,
     record.securitiesCompanyName,
     record.symbol,
