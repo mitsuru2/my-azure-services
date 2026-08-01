@@ -142,6 +142,8 @@ interface StockPriceRecordData {
   holdingQuantity?: number; // 保有数量
   acquisitionUnitPrice?: number; // 取得単価
   currentUnitPrice?: number; // 現在単価
+  evaluationAmount?: number; // 評価額
+  evaluationProfitLoss?: number; // 評価損益
 }
 
 const LIST_DEFINITION_SHEET_NAME = 'リスト定義マスタ';
@@ -352,14 +354,74 @@ const updateStockPriceSheet: ActivityHandler = async (
 df.app.activity('updateStockPriceSheet', { handler: updateStockPriceSheet });
 
 //------------------------------------------------------------------------------
+// 評価額・評価損益取得
+//------------------------------------------------------------------------------
+interface StockEvaluationData {
+  evaluationAmount: number; // 評価額
+  evaluationProfitLoss: number; // 評価損益
+}
+
+/**
+ * 当月資産状況シートのL列(評価額)・M列(評価損益)はスプレッドシート側の数式で自動計算されるため、
+ * 株価(K列)更新後に読み取って取得する。
+ */
+const getStockEvaluationValues: ActivityHandler = async (
+  _input: unknown,
+  context: InvocationContext
+): Promise<StockEvaluationData[]> => {
+  const SHEET_NAME = '当月資産状況';
+  const TITLE_ROW_RANGE = 'L1:M1';
+
+  const spreadsheetId = process.env.STOCK_PRICE_HISTORY_SPREADSHEET_ID;
+  if (!spreadsheetId) {
+    throw new Error('STOCK_PRICE_HISTORY_SPREADSHEET_ID must be set');
+  }
+
+  const sheet = new GoogleSpreadSheet();
+  await sheet.open(spreadsheetId);
+
+  let dataRows: DataRecords['values'];
+  try {
+    const { values } = await sheet.readDataRecords(SHEET_NAME, TITLE_ROW_RANGE, 0);
+    dataRows = values.slice(1);
+  } finally {
+    sheet.close();
+  }
+
+  context.log(`Fetched stock evaluation values: rowCount=${dataRows.length}`);
+
+  return dataRows.map((row) => ({
+    evaluationAmount: Number(row[0] ?? undefined),
+    evaluationProfitLoss: Number(row[1] ?? undefined),
+  }));
+};
+df.app.activity('getStockEvaluationValues', { handler: getStockEvaluationValues });
+
+//------------------------------------------------------------------------------
 // 株価履歴シート追記
 //------------------------------------------------------------------------------
+/**
+ * - A列: date
+ * - B列: assetClass
+ * - C列: securitiesCompanyName
+ * - D列: symbol
+ * - E列: name
+ * - F列: market
+ * - G列: accountName
+ * - H列: accountType
+ * - I列: currency
+ * - J列: holdingQuantity
+ * - K列: acquisitionUnitPrice
+ * - L列: currentUnitPrice
+ * - M列: evaluationAmount
+ * - N列: evaluationProfitLoss
+ */
 const appendStockPriceHistory: ActivityHandler = async (
   input: StockPriceRecordData[],
   context: InvocationContext
 ): Promise<void> => {
   const SHEET_NAME = '月次資産状況履歴';
-  const TITLE_ROW_RANGE = 'A1:L1';
+  const TITLE_ROW_RANGE = 'A1:N1';
 
   const spreadsheetId = process.env.STOCK_PRICE_HISTORY_SPREADSHEET_ID;
   if (!spreadsheetId) {
@@ -379,6 +441,8 @@ const appendStockPriceHistory: ActivityHandler = async (
     record.holdingQuantity ?? null,
     record.acquisitionUnitPrice ?? null,
     record.currentUnitPrice ?? null,
+    record.evaluationAmount ?? null,
+    record.evaluationProfitLoss ?? null,
   ]);
 
   const sheet = new GoogleSpreadSheet();
@@ -430,7 +494,15 @@ const recordStockPriceHistoryOrchestrator: OrchestrationHandler = function* (
       date,
       usdToJpy: exchangeRate.rate,
     });
-    const datedStockList = updatedStockList.map((record) => ({ ...record, date }));
+    // L列(評価額)・M列(評価損益)はスプレッドシート側の数式で計算されるため、更新後に読み取る
+    const evaluationValues: StockEvaluationData[] =
+      yield context.df.callActivity('getStockEvaluationValues');
+    const datedStockList = updatedStockList.map((record, index) => ({
+      ...record,
+      date,
+      evaluationAmount: evaluationValues[index]?.evaluationAmount,
+      evaluationProfitLoss: evaluationValues[index]?.evaluationProfitLoss,
+    }));
     yield context.df.callActivity('appendStockPriceHistory', datedStockList);
   }
 
