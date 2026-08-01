@@ -220,7 +220,7 @@ const getTargetStockList: ActivityHandler = async (
   context: InvocationContext
 ): Promise<StockPriceRecordData[]> => {
   const SHEET_NAME = '当月資産状況';
-  const TITLE_ROW_RANGE = 'A1:J1';
+  const TITLE_ROW_RANGE = 'A1:K1';
 
   const spreadsheetId = process.env.STOCK_PRICE_HISTORY_SPREADSHEET_ID;
   if (!spreadsheetId) {
@@ -247,16 +247,16 @@ const getTargetStockList: ActivityHandler = async (
   }
 
   const records = dataRows.map((row) => ({
-    assetClass: String(row[0] ?? ''),
-    securitiesCompanyName: String(row[1] ?? ''),
-    symbol: String(row[2] ?? ''),
-    name: String(row[3] ?? ''),
-    market: String(row[4] ?? undefined),
-    accountName: String(row[5] ?? ''),
-    accountType: String(row[6] ?? ''),
-    currency: String(row[7] ?? ''),
-    holdingQuantity: Number(row[8] ?? undefined),
-    acquisitionUnitPrice: Number(row[9] ?? undefined),
+    assetClass: String(row[1] ?? ''),
+    securitiesCompanyName: String(row[2] ?? ''),
+    symbol: String(row[3] ?? ''),
+    name: String(row[4] ?? ''),
+    market: String(row[5] ?? undefined),
+    accountName: String(row[6] ?? ''),
+    accountType: String(row[7] ?? ''),
+    currency: String(row[8] ?? ''),
+    holdingQuantity: Number(row[9] ?? undefined),
+    acquisitionUnitPrice: Number(row[10] ?? undefined),
   }));
 
   const listDefinitions = buildListDefinitionMap(listDefinitionRows);
@@ -303,24 +303,25 @@ df.app.activity('updateStockPrice', { handler: updateStockPrice });
 // 株価シート更新
 //------------------------------------------------------------------------------
 /**
- * - A列: assetClass
- * - B列: securitiesCompanyName
- * - C列: symbol
- * - D列: name
- * - E列: market
- * - F列: accountName
- * - G列: accountType
- * - H列: currency
- * - I列: holdingQuantity
- * - J列: acquisitionUnitPrice
- * - K列: currentUnitPrice
+ * - A列: date
+ * - B列: assetClass
+ * - C列: securitiesCompanyName
+ * - D列: symbol
+ * - E列: name
+ * - F列: market
+ * - G列: accountName
+ * - H列: accountType
+ * - I列: currency
+ * - J列: holdingQuantity
+ * - K列: acquisitionUnitPrice
+ * - L列: currentUnitPrice
  */
 const updateStockPriceSheet: ActivityHandler = async (
   input: StockPriceRecordData[],
   context: InvocationContext
 ): Promise<void> => {
   const SHEET_NAME = '当月資産状況';
-  const TITLE_ROW_RANGE = 'A1:K1';
+  const TITLE_ROW_RANGE = 'A1:L1';
 
   const spreadsheetId = process.env.STOCK_PRICE_HISTORY_SPREADSHEET_ID;
   if (!spreadsheetId) {
@@ -328,6 +329,7 @@ const updateStockPriceSheet: ActivityHandler = async (
   }
 
   const values = input.map((record) => [
+    record.date ?? null,
     record.assetClass,
     record.securitiesCompanyName,
     record.symbol,
@@ -362,15 +364,15 @@ interface StockEvaluationData {
 }
 
 /**
- * 当月資産状況シートのL列(評価額)・M列(評価損益)はスプレッドシート側の数式で自動計算されるため、
- * 株価(K列)更新後に読み取って取得する。
+ * 当月資産状況シートのM列(評価額)・N列(評価損益)はスプレッドシート側の数式で自動計算されるため、
+ * 株価(L列)更新後に読み取って取得する。
  */
 const getStockEvaluationValues: ActivityHandler = async (
   _input: unknown,
   context: InvocationContext
 ): Promise<StockEvaluationData[]> => {
   const SHEET_NAME = '当月資産状況';
-  const TITLE_ROW_RANGE = 'L1:M1';
+  const TITLE_ROW_RANGE = 'M1:N1';
 
   const spreadsheetId = process.env.STOCK_PRICE_HISTORY_SPREADSHEET_ID;
   if (!spreadsheetId) {
@@ -484,7 +486,10 @@ const recordStockPriceHistoryOrchestrator: OrchestrationHandler = function* (
     context.df.callActivity('updateStockPrice', record)
   );
   const updatedStockList: StockPriceRecordData[] = yield context.df.Task.all(updateStockPriceTasks);
-  yield context.df.callActivity('updateStockPriceSheet', updatedStockList);
+  yield context.df.callActivity(
+    'updateStockPriceSheet',
+    updatedStockList.map((record) => ({ ...record, date }))
+  );
 
   //
   // 3. 月末処理
@@ -494,9 +499,10 @@ const recordStockPriceHistoryOrchestrator: OrchestrationHandler = function* (
       date,
       usdToJpy: exchangeRate.rate,
     });
-    // L列(評価額)・M列(評価損益)はスプレッドシート側の数式で計算されるため、更新後に読み取る
-    const evaluationValues: StockEvaluationData[] =
-      yield context.df.callActivity('getStockEvaluationValues');
+    // M列(評価額)・N列(評価損益)はスプレッドシート側の数式で計算されるため、更新後に読み取る
+    const evaluationValues: StockEvaluationData[] = yield context.df.callActivity(
+      'getStockEvaluationValues'
+    );
     const datedStockList = updatedStockList.map((record, index) => ({
       ...record,
       date,

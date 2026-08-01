@@ -205,10 +205,7 @@ function parseTransactionRowsSBI(lines: string[], headerRowIndex: number): Trans
   return rows;
 }
 
-function parseTransactionRowsSBIBank(
-  lines: string[],
-  headerRowIndex: number
-): TransactionRow[] {
+function parseTransactionRowsSBIBank(lines: string[], headerRowIndex: number): TransactionRow[] {
   const header = parseCsvLine(lines[headerRowIndex]);
   const dateIndex = header.indexOf(TRANSACTION_DATE_COLUMN_NAME.SBI_BANK);
   const outcomeIndex = header.indexOf('出金金額(円)');
@@ -288,8 +285,8 @@ async function lookupStockNameAndSymbol(
   const nameToSymbol = new Map<string, string>();
   const symbolToName = new Map<string, string>();
   for (const row of rows) {
-    const symbol = String(row[2] ?? '');
-    const name = String(row[3] ?? '');
+    const symbol = String(row[3] ?? '');
+    const name = String(row[4] ?? '');
     if (symbol && name) {
       if (!nameToSymbol.has(name)) {
         nameToSymbol.set(name, symbol);
