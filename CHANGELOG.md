@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.6.0](https://github.com/mitsuru2/my-azure-services/compare/v1.5.1...v1.6.0) (2026-08-01)
+
+
+### Features
+
+* SBI住信ネット銀行の入出金履歴に対応 ([275d8cf](https://github.com/mitsuru2/my-azure-services/commit/275d8cf0c0ece260afec2843973d4b6e64663ce9))
+* 評価額と評価損益列も月末処理のコピー対象にするように修正 ([8c381b9](https://github.com/mitsuru2/my-azure-services/commit/8c381b9975d98e95f29472f0b0516a94795c46d8))
+
+
+### Bug Fixes
+
+* 出金レコードが判定できない不具合 ([4c5d5ff](https://github.com/mitsuru2/my-azure-services/commit/4c5d5ff40ed414c23ba20df612301fe79f3049b8))
+* 日付データがテキストになっていた不具合 ([faf577d](https://github.com/mitsuru2/my-azure-services/commit/faf577deea099e9f309217f060f5433a4f8addec))
+* 日付データがテキストになっていた不具合 ([161ce4a](https://github.com/mitsuru2/my-azure-services/commit/161ce4abfa4ba1083bf2153c22cd26a33e4c3b95))
+* 日付データがテキストになっている不具合 ([9bd8376](https://github.com/mitsuru2/my-azure-services/commit/9bd83766350a2a65800afa3f97d0747725249dae))
+
 ## [1.5.1](https://github.com/mitsuru2/my-azure-services/compare/v1.5.0...v1.5.1) (2026-07-12)
 
 
