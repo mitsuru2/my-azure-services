@@ -3,7 +3,7 @@ import dockerNames from 'docker-names';
 import { GoogleSpreadSheet } from './googleSpreadSheet';
 
 // googleSpreadSheet.test.ts の TEST_SPREADSHEET_ID と同じテスト用スプレッドシート
-const TEST_SPREADSHEET_ID = '1S8SraJt0VFfoiIWCTz0wsVZIiA7ETW025CmMTcU2wyU';
+const TEST_SPREADSHEET_ID = '1pnjJKg96MB0e4baO_SAjXbkJf6q8cFWGHdTX00qA5xw';
 
 const hasCredentials =
   Boolean(process.env.GOOGLE_CLIENT_EMAIL) && Boolean(process.env.GOOGLE_PRIVATE_KEY);
