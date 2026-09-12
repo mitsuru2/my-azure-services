@@ -124,7 +124,10 @@ export class GoogleSpreadSheet {
       spreadsheetId: this.spreadsheetId,
       range: searchRange,
       valueInputOption: 'RAW', // USER_ENTEREDにすると "00123" のような文字列が数値123に変換されてしまうため
-      insertDataOption: 'OVERWRITE',
+      // OVERWRITEだと書式が引き継がれない行に書き込まれることがあり、
+      // 日付シリアル値が日付書式ではなく整数のまま表示されてしまう。
+      // INSERT_ROWSにすると手動で行を挿入した場合と同様に直前行の書式が引き継がれる。
+      insertDataOption: 'INSERT_ROWS',
       requestBody: { values: data.values },
     });
 

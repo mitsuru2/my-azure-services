@@ -382,7 +382,7 @@ describe('GoogleSpreadSheet', () => {
       ).rejects.toThrow('Failed to append data records: unexpected response from Sheets API');
     });
 
-    it('終了行を省略したオープンレンジに対してRAW・OVERWRITEで追記する', async () => {
+    it('終了行を省略したオープンレンジに対してRAW・INSERT_ROWSで追記する', async () => {
       const sheet = await openSheet();
       spreadsheetsGetMock.mockResolvedValueOnce({
         data: { sheets: [{ properties: { title: SHEET_NAME } }] },
@@ -399,7 +399,7 @@ describe('GoogleSpreadSheet', () => {
         spreadsheetId: TEST_SPREADSHEET_ID,
         range: `${SHEET_NAME}!A1:B`,
         valueInputOption: 'RAW',
-        insertDataOption: 'OVERWRITE',
+        insertDataOption: 'INSERT_ROWS',
         requestBody: { values: [['a', 1]] },
       });
       expect(result).toEqual({ range: `${SHEET_NAME}!A3:B3`, rowCount: 1 });
@@ -425,7 +425,7 @@ describe('GoogleSpreadSheet', () => {
         spreadsheetId: TEST_SPREADSHEET_ID,
         range: `${SHEET_NAME}!A1:B`,
         valueInputOption: 'RAW',
-        insertDataOption: 'OVERWRITE',
+        insertDataOption: 'INSERT_ROWS',
         requestBody: {
           values: [
             ['a', 1],
