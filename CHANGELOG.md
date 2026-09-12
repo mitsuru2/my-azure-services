@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/mitsuru2/my-azure-services/compare/v1.6.0...v1.6.1) (2026-09-12)
+
+
+### Bug Fixes
+
+* 月次追記シートで日付が整数表示になる不具合を修正 ([9f811ac](https://github.com/mitsuru2/my-azure-services/commit/9f811ac030d7cf710f50bd661def8255f0019b16))
+
 ## [1.6.0](https://github.com/mitsuru2/my-azure-services/compare/v1.5.1...v1.6.0) (2026-08-01)
 
 
