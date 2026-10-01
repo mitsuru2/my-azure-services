@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.2](https://github.com/mitsuru2/my-azure-services/compare/v1.6.1...v1.6.2) (2026-10-01)
+
+
+### Bug Fixes
+
+* Yahoo Financeのページ構造変更により投資信託の価格取得が失敗する不具合を修正 ([4981451](https://github.com/mitsuru2/my-azure-services/commit/49814515806a605f0522f0af97338ab3ea938c85))
+
 ## [1.6.1](https://github.com/mitsuru2/my-azure-services/compare/v1.6.0...v1.6.1) (2026-09-12)
 
 
