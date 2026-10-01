@@ -75,8 +75,16 @@ async function fetchMutualFundNavByScraping(
 
   const html = await res.text();
 
-  // tickerコードを含む registerItem パターンから価格を抽出する
-  const match = html.match(new RegExp(`"registerItem":\\{"code":"${ticker}","price":"([0-9,]+)"`));
+  // ページタイトルの【tickerコード】表記で、取得したページが対象tickerのものであることを確認する
+  // (registerItemオブジェクトにcodeフィールドが含まれなくなったため、titleで代替検証する)
+  if (!html.includes(`【${ticker}】`)) {
+    context.log(`Page title does not match ticker: ${ticker}`);
+    throw new NotFoundError(`Page title does not match ticker: ${ticker}`);
+  }
+
+  // registerItemパターンから価格を抽出する
+  // ページ内にJSON文字列がエスケープされた状態で埋め込まれているため、エスケープされたダブルクオート(\")を対象に照合する
+  const match = html.match(/\\"registerItem\\":\{\\"price\\":\\"([0-9,.]+)\\"\}/);
   if (!match) {
     context.log(`Price not found in page for ticker: ${ticker}`);
     throw new NotFoundError(`Price not found in page for ticker: ${ticker}`);
