@@ -1,0 +1,79 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  # Azure への OIDC (フェデレーション資格情報) ログインに ID トークンの発行が必要
+  id-token: write
+  contents: read
+
+# 同時に複数のデプロイが走って publish が競合しないようにする
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # Terraform のフェデレーション資格情報は main ブランチのみを信頼するため、
+      # 他ブランチから実行すると Azure ログインで分かりにくいエラーになる。先に明示的に止める。
+      - name: Check branch
+        if: ${{ github.ref != 'refs/heads/main' }}
+        run: |
+          echo "::error::デプロイは main ブランチからのみ実行できます (現在: ${GITHUB_REF})"
+          exit 1
+
+      - uses: actions/checkout@v5
+
+      # ローカルの開発コンテナと同じイメージを使い、az / func / Node.js のバージョンを揃える
+      - name: Build container image
+        run: docker build -t my-azure-services-deploy .
+
+      # azure/login はランナー側の ~/.azure にしかログイン情報を残さず、コンテナ内の node ユーザーとは
+      # UID が異なりマウント共有が難しい。ID トークンだけ取得してコンテナ内で az login する。
+      - name: Get OIDC token
+        id: oidc
+        run: |
+          token=$(curl -fsS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api://AzureADTokenExchange" | jq -r '.value')
+          echo "::add-mask::${token}"
+          echo "token=${token}" >> "$GITHUB_OUTPUT"
+
+      # ランナーのワークスペースは runner ユーザー所有のため、同じ UID で実行して npm ci / build の
+      # 書き込みを可能にする。その UID にはイメージ内のホームが無いので HOME を /tmp 配下にする。
+      - name: Deploy
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          AZURE_FEDERATED_TOKEN: ${{ steps.oidc.outputs.token }}
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp/home \
+            -e AZURE_CLIENT_ID -e AZURE_TENANT_ID -e AZURE_SUBSCRIPTION_ID -e AZURE_FEDERATED_TOKEN \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            -w /workspace \
+            my-azure-services-deploy \
+            bash -euo pipefail -c '
+              mkdir -p "$HOME"
+              az login --service-principal \
+                --username "$AZURE_CLIENT_ID" \
+                --tenant "$AZURE_TENANT_ID" \
+                --federated-token "$AZURE_FEDERATED_TOKEN" \
+                --output none
+              az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+              npm ci
+              npm run deploy
+            '
+
+      - name: Write step summary
+        run: |
+          echo "## Deployed :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "| Key | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Ref | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
