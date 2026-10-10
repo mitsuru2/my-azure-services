@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.1](https://github.com/mitsuru2/my-azure-services/compare/v1.8.0...v1.8.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* init-firewall.sh didn't work due to lack of ipset and iptable. ([e33dbc0](https://github.com/mitsuru2/my-azure-services/commit/e33dbc06b1ce9ffef7ef0fdc925805c2c8692d9b))
+
 ## [1.8.0](https://github.com/mitsuru2/my-azure-services/compare/v1.7.0...v1.8.0) (2026-10-10)
 
 
