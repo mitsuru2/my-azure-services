@@ -90,3 +90,26 @@ Terraformのstateファイルはリモートバックエンド (Azure Blob Stora
 ```bash
 bash infra/deploy.sh
 ```
+
+## Function Appへのデプロイ
+
+### GitHub Actions (推奨)
+
+`.github/workflows/deploy.yml` を Actions タブから手動実行 (workflow_dispatch) する。ルートの `Dockerfile` からビルドしたコンテナ内で `npm ci && npm run deploy` を実行する。
+
+- **実行ブランチ**: `main` のみ。OIDCフェデレーション資格情報が `main` ブランチのみを信頼するため。
+- **認証**: OIDCによるキーレス認証 (クライアントシークレットは不要)。
+- **事前設定**: リポジトリの Settings → Secrets and variables → Actions → Variables に以下を登録する。
+
+| 変数 | 値 |
+|---|---|
+| `AZURE_CLIENT_ID` | `terraform output client_id` の値 |
+| `AZURE_TENANT_ID` | Entra ID テナントID |
+| `AZURE_SUBSCRIPTION_ID` | Function App のサブスクリプションID |
+
+### ローカル
+
+```bash
+az login
+npm run deploy
+```

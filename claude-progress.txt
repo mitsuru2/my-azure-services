@@ -9,3 +9,16 @@
 - src/functions/recordStockPriceHistory.ts: appendStockPriceHistory アクティビティを上記関数の呼び出しに置換。
 - 新規 src/utils/stockPriceHistory.test.ts: Issue 指定の6銘柄で0/1以上混在パターン3種+全件1以上+全件0 等の8テスト。
 - 未解決: なし。実スプレッドシートでの月末処理実行による確認は未実施(ユニットテストのみ)。
+
+## 2026-10-10 (Issue #24: デプロイワークフローの追加)
+- ブランチ: feat/issue-24/claude-code
+- セッション開始時、コンテナに ipset が無く gh も未認証で init.sh が失敗したため中断。ユーザーがイメージをリビルド後に再開。
+- planner で feature-list.json に add-deploy-workflow を追加。
+- 新規 .github/workflows/deploy.yml: workflow_dispatch のみ。main 以外のブランチでは即失敗(OIDC資格情報が main のみ信頼するため)。
+  - ルート Dockerfile を docker build し、docker run 内で az login(--federated-token) → az account set → npm ci → npm run deploy。
+  - azure/login を使わず ACTIONS_ID_TOKEN_REQUEST_URL から ID トークンを取得してコンテナへ環境変数で渡す(ランナーの ~/.azure をコンテナ内 node ユーザーと共有すると UID が合わないため)。トークンは add-mask 済み。
+  - ワークスペース書き込みのため --user $(id -u):$(id -g)、HOME=/tmp/home で実行。ローカルで UID 1001 + HOME=/tmp 配下で func/az/npm run build が動くことを確認済み。
+  - concurrency で同時デプロイを抑止。
+- README.md にデプロイ手順と必要な GitHub Variables (AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID) を追記。
+- Terraform/Bicep の変更なし(既存の oidc_main 資格情報とロール割当を利用)。
+- 未解決: 実際のワークフロー実行によるデプロイ確認は未実施(コンテナ内に Docker が無く、Azure 資格情報も無いため)。workflow_dispatch はデフォルトブランチにファイルが無いと実行できないので、マージ後に main から担当者が手動テストする。GitHub Variables の登録が必要。確認完了まで feature-list の status は in_progress のまま。
