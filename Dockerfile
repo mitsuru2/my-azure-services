@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     ca-certificates \
     wget \
+    zip \
     libicu-dev \
     && rm -rf /var/lib/apt/lists/*
 

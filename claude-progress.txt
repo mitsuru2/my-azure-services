@@ -29,3 +29,11 @@
 - feature-list.json の add-deploy-workflow を done に更新。
 - 補足: attach-issue-evidence.sh が使う zip コマンドがイメージに無く、前回はセッション限りの Python 代替で回避した。Dockerfile の apt-get に zip を追加するのが恒久対応 (未対応)。
 - 未解決: なし (上記 zip の件を除く)。
+
+## 2026-10-10 (Dockerfile に zip を追加)
+- ブランチ: fix/2026-10-10/claude-code
+- scripts/attach-issue-evidence.sh が zip コマンドを使うがイメージに未導入だったため、Dockerfile の apt-get install に zip を追加。README.md の OSツール一覧にも追記。
+- このコンテナ内に Docker が無いためイメージのビルド確認は未実施。反映にはコンテナのリビルドが必要。
+- feature-list.json は機能追加ではないため変更なし。
+- 未解決: なし。
+
