@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.1](https://github.com/mitsuru2/my-azure-services/compare/v1.9.0...v1.9.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* 開発コンテナに zip をインストール ([#29](https://github.com/mitsuru2/my-azure-services/issues/29)) ([5e73135](https://github.com/mitsuru2/my-azure-services/commit/5e7313567cfec3d6cfdd9623163d43a4c265763d))
+
 ## [1.9.0](https://github.com/mitsuru2/my-azure-services/compare/v1.8.1...v1.9.0) (2026-10-10)
 
 
