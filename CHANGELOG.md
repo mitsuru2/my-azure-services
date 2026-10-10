@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/mitsuru2/my-azure-services/compare/v1.7.0...v1.8.0) (2026-10-10)
+
+
+### Features
+
+* 保有口数0の銘柄を月次資産状況履歴にコピーしない ([#21](https://github.com/mitsuru2/my-azure-services/issues/21)) ([#22](https://github.com/mitsuru2/my-azure-services/issues/22)) ([77a28f8](https://github.com/mitsuru2/my-azure-services/commit/77a28f8b7f040876ff0dc9375f3a355dfed19738))
+
 ## [1.7.0](https://github.com/mitsuru2/my-azure-services/compare/v1.6.2...v1.7.0) (2026-10-10)
 
 
