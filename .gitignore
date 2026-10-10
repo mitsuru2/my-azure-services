@@ -146,7 +146,8 @@ vite.config.ts.timestamp-*
 .terraform/
 
 # Claude Code
-.claude/
+#.claude/
+.claude/settings.local.json
 
 # Local secret files.
 .devcontainer/secrets.env
