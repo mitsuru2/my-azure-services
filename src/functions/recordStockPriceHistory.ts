@@ -9,7 +9,11 @@ import {
 } from '@azure/functions';
 import * as df from 'durable-functions';
 import { ActivityHandler, OrchestrationContext, OrchestrationHandler } from 'durable-functions';
-import { dateStringToSheetsSerial, isLastDayOfMonth, jstTimeToUtcCronExpression } from '../utils/date';
+import {
+  dateStringToSheetsSerial,
+  isLastDayOfMonth,
+  jstTimeToUtcCronExpression,
+} from '../utils/date';
 import { DataRecords, GoogleSpreadSheet } from '../utils/googleSpreadSheet';
 import { getStockPrice, isMarket, MARKET_CURRENCY } from './stockPrice';
 
@@ -69,7 +73,7 @@ interface ExchangeRateRecordData {
 
 const updateExchangeRateSheet: ActivityHandler = async (
   input: ExchangeRateRecordData,
-  context: InvocationContext
+  _context: InvocationContext
 ): Promise<void> => {
   const SHEET_NAME = '当月為替レート';
   const TITLE_ROW_RANGE = 'A1:B1';
@@ -217,7 +221,8 @@ function assertValidStockPriceRecordData(
 }
 
 const getTargetStockList: ActivityHandler = async (
-  context: InvocationContext
+  _input: unknown,
+  _context: InvocationContext
 ): Promise<StockPriceRecordData[]> => {
   const SHEET_NAME = '当月資産状況';
   const TITLE_ROW_RANGE = 'A1:K1';

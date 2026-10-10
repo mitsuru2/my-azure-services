@@ -133,7 +133,7 @@ export class GoogleSpreadSheet {
 
     const updatedRange = response.data.updates?.updatedRange;
     const updatedRows = response.data.updates?.updatedRows;
-    if (!updatedRange || updatedRows === undefined) {
+    if (!updatedRange || updatedRows == null) {
       throw new Error('Failed to append data records: unexpected response from Sheets API');
     }
 
@@ -187,7 +187,7 @@ export class GoogleSpreadSheet {
 
     const updatedRange = response.data.updatedRange;
     const updatedRows = response.data.updatedRows;
-    if (!updatedRange || updatedRows === undefined) {
+    if (!updatedRange || updatedRows == null) {
       throw new Error('Failed to update data records: unexpected response from Sheets API');
     }
 

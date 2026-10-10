@@ -1,0 +1,78 @@
+name: 不具合報告
+description: バグ・不具合の報告
+labels: ['bug']
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 概要
+      description: どんな不具合か、一言で
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: 再現手順
+      description: 手順を番号付きで具体的に記載してください
+      placeholder: |
+        1. 〇〇画面を開く
+        2. △△ボタンをクリックする
+        3. □□を入力して送信する
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: 期待する挙動
+      description: 本来どうなるべきか
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: 実際の挙動
+      description: 実際に何が起きているか(エラーメッセージがあれば全文を貼り付け)
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: 受け入れ条件(完了の定義)
+      description: 何をもって修正完了とするか
+      placeholder: |
+        - [ ] 再現手順を実施してもエラーが発生しない
+        - [ ] 既存のテストが通る
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 重要度
+      options:
+        - Critical(本番停止・データ破損レベル)
+        - High(主要機能が使えない)
+        - Medium(一部機能に支障)
+        - Low(軽微・見た目の問題等)
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: 環境情報
+      description: OS、ブラウザ、バージョンなど、再現に関わる環境情報
+    validations:
+      required: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: 補足情報
+      description: 関連ファイル・ログ・スクリーンショットへのリンクなど
+    validations:
+      required: false

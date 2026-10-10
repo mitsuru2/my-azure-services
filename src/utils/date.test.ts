@@ -52,9 +52,7 @@ describe('dateStringToSheetsSerial', () => {
   });
 
   it('increments by one for each following day', () => {
-    expect(dateStringToSheetsSerial('2026/06/16') - dateStringToSheetsSerial('2026/06/15')).toBe(
-      1
-    );
+    expect(dateStringToSheetsSerial('2026/06/16') - dateStringToSheetsSerial('2026/06/15')).toBe(1);
   });
 
   it('accepts single-digit months and days', () => {

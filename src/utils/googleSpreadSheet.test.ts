@@ -223,7 +223,13 @@ describe('GoogleSpreadSheet', () => {
         data: { sheets: [{ properties: { title: SHEET_NAME } }] },
       });
       valuesGetMock.mockResolvedValueOnce({
-        data: { values: [['col1', 'col2'], ['a', 'b'], ['c', 'd']] },
+        data: {
+          values: [
+            ['col1', 'col2'],
+            ['a', 'b'],
+            ['c', 'd'],
+          ],
+        },
       });
 
       await sheet.readDataRecords(SHEET_NAME, 'A1:B1', 3);
@@ -240,7 +246,14 @@ describe('GoogleSpreadSheet', () => {
       spreadsheetsGetMock.mockResolvedValueOnce({
         data: { sheets: [{ properties: { title: SHEET_NAME } }] },
       });
-      valuesGetMock.mockResolvedValueOnce({ data: { values: [['col1', 'col2'], ['a', 'b']] } });
+      valuesGetMock.mockResolvedValueOnce({
+        data: {
+          values: [
+            ['col1', 'col2'],
+            ['a', 'b'],
+          ],
+        },
+      });
 
       await sheet.readDataRecords(SHEET_NAME, 'A1:B1', 2.9);
 
@@ -256,7 +269,14 @@ describe('GoogleSpreadSheet', () => {
       spreadsheetsGetMock.mockResolvedValueOnce({
         data: { sheets: [{ properties: { title: SHEET_NAME } }] },
       });
-      valuesGetMock.mockResolvedValueOnce({ data: { values: [['col1', 'col2'], ['a', 'b']] } });
+      valuesGetMock.mockResolvedValueOnce({
+        data: {
+          values: [
+            ['col1', 'col2'],
+            ['a', 'b'],
+          ],
+        },
+      });
 
       await sheet.readDataRecords(SHEET_NAME, 'A1:B1', 0);
 
@@ -274,11 +294,7 @@ describe('GoogleSpreadSheet', () => {
       });
       valuesGetMock.mockResolvedValueOnce({
         data: {
-          values: [
-            ['col1', 'col2', 'col3'],
-            ['a'],
-            ['b', 'c', 'd', 'e'],
-          ],
+          values: [['col1', 'col2', 'col3'], ['a'], ['b', 'c', 'd', 'e']],
         },
       });
 
@@ -317,9 +333,9 @@ describe('GoogleSpreadSheet', () => {
     it('sheetNameが空文字列の場合はエラーを投げる', async () => {
       const sheet = await openSheet();
 
-      await expect(
-        sheet.appendDataRecords('', 'A1:B1', { values: [['a', 'b']] })
-      ).rejects.toThrow('sheetName must not be empty');
+      await expect(sheet.appendDataRecords('', 'A1:B1', { values: [['a', 'b']] })).rejects.toThrow(
+        'sheetName must not be empty'
+      );
     });
 
     it('titleRowRangeがA1形式でない場合はエラーを投げる', async () => {
@@ -545,12 +561,7 @@ describe('GoogleSpreadSheet', () => {
         data: { updatedRange: `${SHEET_NAME}!A2:B2`, updatedRows: 1 },
       });
 
-      const result = await sheet.updateDataRecords(
-        SHEET_NAME,
-        'A1:B1',
-        { values: [['a', 1]] },
-        1
-      );
+      const result = await sheet.updateDataRecords(SHEET_NAME, 'A1:B1', { values: [['a', 1]] }, 1);
 
       expect(valuesUpdateMock).toHaveBeenCalledWith({
         spreadsheetId: TEST_SPREADSHEET_ID,

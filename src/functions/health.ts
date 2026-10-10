@@ -1,7 +1,5 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
-
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { name: product, version } = require('../../../package.json');
+import { name as product, version } from '../../package.json';
 
 export async function health(
   request: HttpRequest,

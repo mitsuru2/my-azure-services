@@ -1,0 +1,25 @@
+name: 機能追加
+description: 新機能の実装依頼
+labels: ['enhancement']
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 概要
+      description: 何を実装してほしいか
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: 受け入れ条件
+      description: 何をもって完了とするか、箇条書きで
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: 補足情報
+      description: 関連ファイル・参考リンクなど
+    validations:
+      required: false

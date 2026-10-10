@@ -31,28 +31,12 @@ interface StockPriceResponse {
   error?: string;
 }
 
-interface MufgDataset {
-  nav: number;
-}
-
-interface MufgApiResponse {
-  result: {
-    status: number;
-    retcount: number;
-    errcd: string | null;
-    errmsg: string | null;
-  };
-  datasets: MufgDataset[] | null;
-}
-
 export class NotFoundError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'NotFoundError';
   }
 }
-
-const MUFG_API_BASE = 'https://developer.am.mufg.jp/fund_information_latest/association_fund_cd';
 
 const YAHOO_FINANCE_QUOTE_BASE = 'https://finance.yahoo.co.jp/quote';
 
@@ -97,32 +81,6 @@ async function fetchMutualFundNavByScraping(
 
   context.log(`Fetched NAV for ${ticker}: ${price}`);
   return price;
-}
-
-async function fetchMutualFundNav(ticker: string, context: InvocationContext): Promise<number> {
-  context.log(`Fetching mutual fund NAV for ticker: ${ticker}`);
-  const res = await fetch(`${MUFG_API_BASE}/${ticker}`);
-
-  if (!res.ok) {
-    context.log(`MUFG API error: ${res.status}`);
-    throw new Error(`MUFG API error: ${res.status}`);
-  }
-
-  // MUFG APIのレスポンスをパースしてNAVを取得する
-  // 銘柄が見つからなかった場合、res.okはtrueだが、result.statusが404となる
-  const data = (await res.json()) as MufgApiResponse;
-  if (data.result.status !== 200 || !data.datasets || data.datasets.length === 0) {
-    if (data.result.status === 404) {
-      context.log(`Ticker not found: ${ticker}`);
-      throw new NotFoundError(`Ticker not found: ${ticker}`);
-    } else {
-      context.log(`MUFG API error: ${data.result.status}, ${data.result.errmsg}`);
-      throw new Error(`MUFG API error: ${data.result.status}, ${data.result.errmsg}`);
-    }
-  }
-  const nav = data.datasets[0].nav;
-  context.log(`Fetched NAV for ${ticker}: ${nav}`);
-  return nav;
 }
 
 async function fetchEquityPrice(symbol: string, context: InvocationContext): Promise<number> {
@@ -201,7 +159,7 @@ export async function stockPrice(
     market,
     ticker,
     price,
-    currency: price !== undefined ? MARKET_CURRENCY[market] : undefined,
+    currency: price !== undefined && isMarket(market) ? MARKET_CURRENCY[market] : undefined,
     timestamp: new Date().toISOString(),
     error: errorMessage,
   };
