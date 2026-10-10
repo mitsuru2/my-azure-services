@@ -1,0 +1,11 @@
+
+## 2026-10-10 (Issue #21: 保有口数0の銘柄を月次資産状況履歴にコピーしない)
+- ブランチ: feat/issue-21/claude-code
+- セッション開始時、コンテナに iptables/ipset が無く init-firewall.sh が失敗したため中断。ユーザーが Dockerfile を修正しイメージをリビルド後に再開(Dockerfile の差分はユーザー作業のため本PRには含めていない)。
+- 新規 src/utils/stockPriceHistory.ts: StockPriceRecordData を移設し、filterNonZeroHolding / buildStockPriceHistoryValues / appendMonthlyStockPriceHistory を追加。
+  - holdingQuantity === 0 の行のみ除外。空欄(NaN/undefined)は現行挙動維持のため残す。
+  - 評価額/評価損益は行index対応で結合されるため、フィルタは結合後(appendStockPriceHistory アクティビティ内)で実施。
+  - 除外後0件なら appendDataRecords を呼ばない。
+- src/functions/recordStockPriceHistory.ts: appendStockPriceHistory アクティビティを上記関数の呼び出しに置換。
+- 新規 src/utils/stockPriceHistory.test.ts: Issue 指定の6銘柄で0/1以上混在パターン3種+全件1以上+全件0 等の8テスト。
+- 未解決: なし。実スプレッドシートでの月末処理実行による確認は未実施(ユニットテストのみ)。
