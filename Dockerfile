@@ -6,6 +6,10 @@ FROM node:24-trixie
 RUN apt-get update && apt-get install -y \
     git \
     sudo \
+    gnupg \
+    iptables \
+    ipset \
+    dnsutils \
     jq \
     curl \
     ca-certificates \
