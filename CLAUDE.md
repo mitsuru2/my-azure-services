@@ -11,8 +11,8 @@ You are an expert in TypeScript, Node.js, and Azure Functions. You write functio
 
 - Build: `npm run build`
 - Type check: `npx tsc --noEmit`
-- Test: `npm test`
-- Format: `npx prettier --write <files>`
+- Unit tests: `npm test` (excludes `*.integration.test.ts`)
+- Integration tests: `npm run test:integration`
 
 ## TypeScript Best Practices
 
@@ -42,7 +42,9 @@ You are an expert in TypeScript, Node.js, and Azure Functions. You write functio
   - `context.warn`: recoverable or unexpected-but-handled situations
   - `context.error`: failures that cause an error response or abort processing
 - Never log secrets, credentials, or personal data
-- Read configuration and secrets from environment variables (`process.env`). Do NOT hard-code them. Add new settings to `local.settings.json` and the infrastructure definitions under `infra/`
+- Read configuration and secrets from environment variables (`process.env`). Do NOT hard-code them. Add new settings to `local.settings.json` and the infrastructure definitions under `infra/`:
+  - Bicep (`infra/bicep/`) is the primary infrastructure definition, including Function App settings
+  - Terraform (`infra/terraform/`) is used only for Entra ID resources that Bicep does not support (e.g. managed identities)
 - Durable Functions orchestrators MUST be deterministic: do not call I/O, `Date.now()`, `new Date()`, or random functions directly in orchestrators. Use activities and `context.df.currentUtcDateTime` instead
 
 ## HTTP APIs
@@ -65,12 +67,12 @@ You are an expert in TypeScript, Node.js, and Azure Functions. You write functio
 - Place unit tests next to the source file as `*.test.ts`
 - Place tests that call real external services in `*.integration.test.ts`, and skip them with `describe.skipIf()` when credentials are not available
 - Mock external I/O (HTTP, Google APIs) in unit tests
+- Do NOT run `npm run test:integration` without the user's explicit approval: it reads and writes real external resources (e.g. the Google Sheets spreadsheet)
 - Write test names (`it(...)`) in Japanese describing the expected behavior
 - Add or update tests for every bug fix and new feature
 
 ## Code Style
 
-- Follow `.prettierrc`; run Prettier on files you change
 - Write comments in Japanese. Explain *why* (background, constraints, external API quirks), not *what*
 - Name constants in `UPPER_SNAKE_CASE`, types and classes in `PascalCase`, functions and variables in `camelCase`
 
@@ -103,11 +105,19 @@ Then always read the following files to understand prior progress and outstandin
 
 Use this context to decide what to work on in the current session.
 
+## Planning
+
+When the user states a new concrete feature or enhancement they want implemented (including a GitHub Issue labeled `enhancement`), invoke the `planner` subagent before writing any code. Include today's date and the full requirement text in the prompt. Then implement from the resulting `feature-list.json` entry, setting its `status` to `in_progress` when you start.
+
+Do not use the planner for bug fixes, or for hypothetical discussion.
+
+`feature-list.json` `status` values: `todo` → `in_progress` → `done`.
+
 ## Session End Procedure
 
 When finishing work, complete the following steps **in this order**.
 
-1. Run `npm test` and confirm all tests pass. If any fail, fix the cause before proceeding.
+1. Run `npx tsc --noEmit` and `npm test`, and confirm both succeed. If either fails, fix the cause before proceeding.
 2. Update the session records yourself:
    - Append a summary of this session's work, changes, and any unresolved issues to the end of `claude-progress.txt`. Never rewrite prior entries.
    - Upsert the `feature-list.json` entries so the `status` of each feature implemented or changed in this session reflects reality. Update an entry in place if its `name` already exists, otherwise add it; preserve every other entry's content and order.
