@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.7.0](https://github.com/mitsuru2/my-azure-services/compare/v1.6.2...v1.7.0) (2026-10-10)
+
+
+### Features
+
+* (1) Add ESLint. (2) Fix lint errors and prettier warnings. ([2e51506](https://github.com/mitsuru2/my-azure-services/commit/2e51506896d13fb16125cb3fc556e375c7fc815a))
+
+
+### Bug Fixes
+
+* Apply NPM audit fix. ([7b8eaa4](https://github.com/mitsuru2/my-azure-services/commit/7b8eaa49c344bd6ea2e5b8c1beca1f70ae70a6b7))
+
 ## [1.6.2](https://github.com/mitsuru2/my-azure-services/compare/v1.6.1...v1.6.2) (2026-10-01)
 
 
