@@ -10,7 +10,8 @@
     "prestart": "npm run build",
     "start": "func start",
     "lint": "npx eslint .",
-    "test": "vitest run --reporter=default",
+    "test": "vitest run --reporter=default --exclude '**/*.integration.test.ts' --exclude '**/node_modules/**'",
+    "test:integration": "vitest run --reporter=default integration.test",
     "deploy": "npm run build && func azure functionapp publish ti7d2zarxv6ke-functions --typescript --no-build",
     "azurite:start": "bash scripts/azurite-start.sh",
     "azurite:stop": "pkill -f azurite"
