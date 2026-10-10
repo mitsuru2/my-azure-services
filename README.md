@@ -20,6 +20,7 @@ API仕様の詳細は [openapi.yaml](openapi.yaml) を参照。
   - git
   - sudo
   - jq
+  - zip (scripts/attach-issue-evidence.sh でテストエビデンスを圧縮するため)
   - curl / wget / ca-certificates
   - libicu-dev (Azure Functions Core Tools の依存関係)
   - Azure CLI
