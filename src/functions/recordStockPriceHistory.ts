@@ -15,6 +15,7 @@ import {
   jstTimeToUtcCronExpression,
 } from '../utils/date';
 import { DataRecords, GoogleSpreadSheet } from '../utils/googleSpreadSheet';
+import { appendMonthlyStockPriceHistory, StockPriceRecordData } from '../utils/stockPriceHistory';
 import { getStockPrice, isMarket, MARKET_CURRENCY } from './stockPrice';
 
 //------------------------------------------------------------------------------
@@ -133,23 +134,6 @@ df.app.activity('appendExchangeRateHistory', { handler: appendExchangeRateHistor
 //------------------------------------------------------------------------------
 // 保有株式情報取得
 //------------------------------------------------------------------------------
-interface StockPriceRecordData {
-  date?: string; // 日付
-  assetClass: string; // 資産クラス
-  symbol: string; // 銘柄コード, ティッカー
-  name: string; // 銘柄名
-  currency: string; // 通貨 (JPY, USD)
-  market?: string; // 市場 (TSE, NASDAQ, NYSE, etc.)
-  securitiesCompanyName: string; // 証券会社名
-  accountType: string; // 口座種別 (特定口座, 一般口座, NISA, etc.)
-  accountName: string; // 口座名義
-  holdingQuantity?: number; // 保有数量
-  acquisitionUnitPrice?: number; // 取得単価
-  currentUnitPrice?: number; // 現在単価
-  evaluationAmount?: number; // 評価額
-  evaluationProfitLoss?: number; // 評価損益
-}
-
 const LIST_DEFINITION_SHEET_NAME = 'リスト定義マスタ';
 const LIST_DEFINITION_TITLE_ROW_RANGE = 'A1:B1';
 
@@ -407,56 +391,20 @@ df.app.activity('getStockEvaluationValues', { handler: getStockEvaluationValues 
 //------------------------------------------------------------------------------
 // 株価履歴シート追記
 //------------------------------------------------------------------------------
-/**
- * - A列: date
- * - B列: assetClass
- * - C列: securitiesCompanyName
- * - D列: symbol
- * - E列: name
- * - F列: market
- * - G列: accountName
- * - H列: accountType
- * - I列: currency
- * - J列: holdingQuantity
- * - K列: acquisitionUnitPrice
- * - L列: currentUnitPrice
- * - M列: evaluationAmount
- * - N列: evaluationProfitLoss
- */
 const appendStockPriceHistory: ActivityHandler = async (
   input: StockPriceRecordData[],
   context: InvocationContext
 ): Promise<void> => {
-  const SHEET_NAME = '月次資産状況履歴';
-  const TITLE_ROW_RANGE = 'A1:N1';
-
   const spreadsheetId = process.env.STOCK_PRICE_HISTORY_SPREADSHEET_ID;
   if (!spreadsheetId) {
     throw new Error('STOCK_PRICE_HISTORY_SPREADSHEET_ID must be set');
   }
 
-  const values = input.map((record) => [
-    record.date ? dateStringToSheetsSerial(record.date) : null,
-    record.assetClass,
-    record.securitiesCompanyName,
-    record.symbol,
-    record.name,
-    record.market ?? null,
-    record.accountName,
-    record.accountType,
-    record.currency,
-    record.holdingQuantity ?? null,
-    record.acquisitionUnitPrice ?? null,
-    record.currentUnitPrice ?? null,
-    record.evaluationAmount ?? null,
-    record.evaluationProfitLoss ?? null,
-  ]);
-
   const sheet = new GoogleSpreadSheet();
   await sheet.open(spreadsheetId);
 
   try {
-    const result = await sheet.appendDataRecords(SHEET_NAME, TITLE_ROW_RANGE, { values });
+    const result = await appendMonthlyStockPriceHistory(sheet, input, context);
     context.log(`Appended stock price history: range=${result.range}, rowCount=${result.rowCount}`);
   } finally {
     sheet.close();
