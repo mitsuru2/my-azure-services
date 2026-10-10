@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/mitsuru2/my-azure-services/compare/v1.8.1...v1.9.0) (2026-10-10)
+
+
+### Features
+
+* GitHub ActionsからFunction Appをデプロイするワークフローを追加 ([#24](https://github.com/mitsuru2/my-azure-services/issues/24)) ([#26](https://github.com/mitsuru2/my-azure-services/issues/26)) ([c980d75](https://github.com/mitsuru2/my-azure-services/commit/c980d7585580465a294aba48038a5d7cd5a966f9))
+
 ## [1.8.1](https://github.com/mitsuru2/my-azure-services/compare/v1.8.0...v1.8.1) (2026-10-10)
 
 
