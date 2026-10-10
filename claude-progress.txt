@@ -22,3 +22,10 @@
 - README.md にデプロイ手順と必要な GitHub Variables (AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID) を追記。
 - Terraform/Bicep の変更なし(既存の oidc_main 資格情報とロール割当を利用)。
 - 未解決: 実際のワークフロー実行によるデプロイ確認は未実施(コンテナ内に Docker が無く、Azure 資格情報も無いため)。workflow_dispatch はデフォルトブランチにファイルが無いと実行できないので、マージ後に main から担当者が手動テストする。GitHub Variables の登録が必要。確認完了まで feature-list の status は in_progress のまま。
+
+## 2026-10-10 (Issue #24 フォローアップ: デプロイワークフローの実環境確認)
+- ブランチ: feat/2026-10-10/claude-code
+- PR #26 マージ後、担当者が main から deploy ワークフローを手動実行し、実環境へのデプロイ成功を確認 (https://github.com/mitsuru2/my-azure-services/actions/runs/38057265133)。
+- feature-list.json の add-deploy-workflow を done に更新。
+- 補足: attach-issue-evidence.sh が使う zip コマンドがイメージに無く、前回はセッション限りの Python 代替で回避した。Dockerfile の apt-get に zip を追加するのが恒久対応 (未対応)。
+- 未解決: なし (上記 zip の件を除く)。
