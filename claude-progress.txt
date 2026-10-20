@@ -50,3 +50,9 @@
   - コンテナに GOOGLE_CLIENT_EMAIL / GOOGLE_PRIVATE_KEY が無く、結合テスト (ダミーファイルでの確認) は未実行。資格情報を用意した上で `npm run test:integration` で確認が必要。
   - 月次資産状況履歴・為替レート履歴 (recordStockPriceHistory.ts / stockPriceHistory.ts) も同様に日付シリアル値を書式指定なしで追記しているため、同じ問題が潜在する可能性がある (本Issueの範囲外として未対応)。
 - feature-list.json はバグ修正のため変更なし。
+
+## 2026-10-20 (Issue #31 フォローアップ: 結合テストの実施)
+- ブランチ: fix/issue-31/claude-code (PR #32)
+- ユーザーが secrets.env に GOOGLE_CLIENT_EMAIL / GOOGLE_PRIVATE_KEY を復旧したため、ユーザー承認のうえ `npm run test:integration` を全件実行し、8件すべて成功。
+  - ダミーファイル 1pnjJKg96MB0e4baO_SAjXbkJf6q8cFWGHdTX00qA5xw の sand_box シートに追記したB列が formattedValue='2026/6/15'、numberFormat={type: DATE, pattern: 'yyyy/M/d'} になることを確認。
+- 前回の「未解決: 結合テスト未実行」は解消。月次資産状況履歴・為替レート履歴の潜在問題は引き続き未対応。
