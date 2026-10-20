@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import dockerNames from 'docker-names';
+import { google } from 'googleapis';
 import { GoogleSpreadSheet } from './googleSpreadSheet';
 
 // googleSpreadSheet.test.ts の TEST_SPREADSHEET_ID と同じテスト用スプレッドシート
@@ -132,6 +133,64 @@ describe.skipIf(!hasCredentials)('GoogleSpreadSheet (integration)', () => {
       expect(allRows.values[allRows.values.length - 1]).toEqual([timestamp, name, value, text]);
 
       sheet.close();
+    });
+  });
+
+  describe('appendDataRecords (日付書式)', () => {
+    // Issue #31: 空の sand_box シートに追記し、日付列に yyyy/M/d の表示形式が明示的に設定されることを確認する。
+    // 空シートでは直前行の書式を引き継げないため、書式を明示的に設定しない限り数値のまま表示される。
+    const SHEET_NAME = 'sand_box';
+
+    // 表示形式は readDataRecords (UNFORMATTED_VALUE) では確認できないため、Sheets API で直接取得する
+    const readCellFormat = async (
+      range: string
+    ): Promise<{
+      formattedValue?: string | null;
+      pattern?: string | null;
+      type?: string | null;
+    }> => {
+      const auth = new google.auth.JWT({
+        email: process.env.GOOGLE_CLIENT_EMAIL,
+        key: (process.env.GOOGLE_PRIVATE_KEY ?? '').replace(/\\n/g, '\n'),
+        scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+      });
+      const sheets = google.sheets({ version: 'v4', auth });
+      const response = await sheets.spreadsheets.get({
+        spreadsheetId: TEST_SPREADSHEET_ID,
+        ranges: [range],
+        includeGridData: true,
+        fields: 'sheets.data.rowData.values(formattedValue,userEnteredFormat.numberFormat)',
+      });
+      const cell = response.data.sheets?.[0]?.data?.[0]?.rowData?.[0]?.values?.[0];
+      return {
+        formattedValue: cell?.formattedValue,
+        pattern: cell?.userEnteredFormat?.numberFormat?.pattern,
+        type: cell?.userEnteredFormat?.numberFormat?.type,
+      };
+    };
+
+    it('dateColumnsを指定して追記すると、日付列がyyyy/M/d形式で表示される', async () => {
+      const sheet = new GoogleSpreadSheet();
+      await sheet.open(TEST_SPREADSHEET_ID);
+
+      // 2026/6/15 のシリアル値
+      const serial = 46188;
+      const name = dockerNames.getRandomName();
+
+      const result = await sheet.appendDataRecords(
+        SHEET_NAME,
+        'A1:C1',
+        { values: [[name, serial, 300000]] },
+        { dateColumns: ['B'] }
+      );
+      sheet.close();
+
+      expect(result.rowCount).toBe(1);
+      const match = /!A(\d+):C\d+$/.exec(result.range);
+      expect(match).not.toBeNull();
+
+      const format = await readCellFormat(`${SHEET_NAME}!B${match?.[1]}`);
+      expect(format).toEqual({ formattedValue: '2026/6/15', pattern: 'yyyy/M/d', type: 'DATE' });
     });
   });
 

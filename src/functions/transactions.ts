@@ -31,9 +31,11 @@ const TRANSACTION_DATE_COLUMN_NAME: Record<TransactionFormatType, string> = {
 
 const DIVIDEND_HISTORY_SHEET_NAME = '配当履歴';
 const DIVIDEND_HISTORY_TITLE_ROW_RANGE = 'A1:H1';
+const DIVIDEND_HISTORY_DATE_COLUMNS = ['B'];
 
 const CASH_FLOW_HISTORY_SHEET_NAME = '入出金履歴';
 const CASH_FLOW_HISTORY_TITLE_ROW_RANGE = 'A1:I1';
+const CASH_FLOW_HISTORY_DATE_COLUMNS = ['B'];
 
 const STOCK_STATUS_SHEET_NAME = '当月資産状況';
 const STOCK_STATUS_TITLE_ROW_RANGE = 'A1:J1';
@@ -308,6 +310,7 @@ async function appendNewRecords<T extends { id: string }>(
   spreadsheetId: string,
   sheetName: string,
   titleRowRange: string,
+  dateColumns: string[],
   candidates: T[],
   toRow: (record: T) => (string | number)[]
 ): Promise<number> {
@@ -326,9 +329,12 @@ async function appendNewRecords<T extends { id: string }>(
       return 0;
     }
 
-    await sheet.appendDataRecords(sheetName, titleRowRange, {
-      values: newRecords.map(toRow),
-    });
+    await sheet.appendDataRecords(
+      sheetName,
+      titleRowRange,
+      { values: newRecords.map(toRow) },
+      { dateColumns }
+    );
 
     return newRecords.length;
   } finally {
@@ -344,6 +350,7 @@ function appendNewDividendRecords(
     spreadsheetId,
     DIVIDEND_HISTORY_SHEET_NAME,
     DIVIDEND_HISTORY_TITLE_ROW_RANGE,
+    DIVIDEND_HISTORY_DATE_COLUMNS,
     candidates,
     (record) => [
       record.id,
@@ -358,7 +365,7 @@ function appendNewDividendRecords(
   );
 }
 
-function appendNewCashFlowRecords(
+export function appendNewCashFlowRecords(
   spreadsheetId: string,
   candidates: CashFlowRecord[]
 ): Promise<number> {
@@ -366,6 +373,7 @@ function appendNewCashFlowRecords(
     spreadsheetId,
     CASH_FLOW_HISTORY_SHEET_NAME,
     CASH_FLOW_HISTORY_TITLE_ROW_RANGE,
+    CASH_FLOW_HISTORY_DATE_COLUMNS,
     candidates,
     (record) => [
       record.id,
