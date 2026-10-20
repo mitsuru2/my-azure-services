@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.2](https://github.com/mitsuru2/my-azure-services/compare/v1.9.1...v1.9.2) (2026-10-20)
+
+
+### Bug Fixes
+
+* 入出金履歴シートの日付列の表示形式を明示的に設定 ([#31](https://github.com/mitsuru2/my-azure-services/issues/31)) ([#32](https://github.com/mitsuru2/my-azure-services/issues/32)) ([0a42b79](https://github.com/mitsuru2/my-azure-services/commit/0a42b79946e3d80a32fb4af858e364abaeb2da16))
+
 ## [1.9.1](https://github.com/mitsuru2/my-azure-services/compare/v1.9.0...v1.9.1) (2026-10-10)
 
 
