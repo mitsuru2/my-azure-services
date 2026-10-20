@@ -1,5 +1,26 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { openMock, closeMock, readDataRecordsMock, appendDataRecordsMock } = vi.hoisted(() => ({
+  openMock: vi.fn().mockResolvedValue(undefined),
+  closeMock: vi.fn(),
+  readDataRecordsMock: vi.fn(),
+  appendDataRecordsMock: vi.fn().mockResolvedValue({ range: '', rowCount: 0 }),
+}));
+
+vi.mock('../utils/googleSpreadSheet', () => ({
+  GoogleSpreadSheet: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
+    Object.assign(this, {
+      open: openMock,
+      close: closeMock,
+      readDataRecords: readDataRecordsMock,
+      appendDataRecords: appendDataRecordsMock,
+    });
+  }),
+}));
+
 import {
+  appendNewCashFlowRecords,
+  type CashFlowRecord,
   decodeBase64Csv,
   detectCurrency,
   extractNameAndSymbol,
@@ -244,5 +265,64 @@ describe('generateId', () => {
     const a = '"2026/06/30","入金","利金・配当金","株式配当金 東京海上ホールディングス","0","8966"';
     const b = '"2026/06/22","入金","利金・配当金","株式配当金 三菱商事","0","8766"';
     expect(generateId(a)).not.toBe(generateId(b));
+  });
+});
+
+describe('appendNewCashFlowRecords', () => {
+  const record = (id: string, date: string): CashFlowRecord => ({
+    id,
+    date,
+    transactionType: '入金',
+    securitiesCompanyName: 'SBI証券',
+    accountHolderName: '高橋充',
+    accountType: '一般',
+    amount: 300000,
+    currency: 'JPY',
+    note: '',
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    readDataRecordsMock.mockResolvedValue({ values: [['ID', '日付']] });
+  });
+
+  it('入出金履歴シートに追記する際、日付列(B列)の表示形式を明示的に設定するよう指定する', async () => {
+    const added = await appendNewCashFlowRecords('spreadsheet-id', [
+      record('id1', '2026/06/15'),
+      record('id2', '2026/06/17'),
+    ]);
+
+    expect(added).toBe(2);
+    expect(appendDataRecordsMock).toHaveBeenCalledWith(
+      '入出金履歴',
+      'A1:I1',
+      {
+        values: [
+          ['id1', 46188, '入金', 'SBI証券', '高橋充', '一般', 300000, 'JPY', ''],
+          ['id2', 46190, '入金', 'SBI証券', '高橋充', '一般', 300000, 'JPY', ''],
+        ],
+      },
+      { dateColumns: ['B'] }
+    );
+    expect(closeMock).toHaveBeenCalledOnce();
+  });
+
+  it('既存IDと重複する明細は追記対象から除外される', async () => {
+    readDataRecordsMock.mockResolvedValue({
+      values: [
+        ['ID', '日付'],
+        ['id1', 46188],
+      ],
+    });
+
+    const added = await appendNewCashFlowRecords('spreadsheet-id', [
+      record('id1', '2026/06/15'),
+      record('id2', '2026/06/17'),
+    ]);
+
+    expect(added).toBe(1);
+    expect(appendDataRecordsMock.mock.calls[0][2].values.map((row: unknown[]) => row[0])).toEqual([
+      'id2',
+    ]);
   });
 });

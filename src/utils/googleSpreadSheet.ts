@@ -5,6 +5,11 @@ type JWTClient = InstanceType<typeof google.auth.JWT>;
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
 
 const TITLE_ROW_RANGE_PATTERN = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/;
+// values.append のレスポンスの updatedRange はシート名がクォートされる場合がある (例: "'シート 1'!A5:I7") ため、末尾のセル範囲部分のみを取り出す
+const UPDATED_RANGE_PATTERN = /!([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/;
+
+// Issue #31: 日付シリアル値を「yyyy/M/d」形式で表示するための書式
+const DATE_NUMBER_FORMAT_PATTERN = 'yyyy/M/d';
 
 export interface DataRecords {
   values: (string | number | boolean | null)[][];
@@ -15,6 +20,11 @@ export interface AppendResult {
   rowCount: number;
 }
 export type UpdateResult = AppendResult;
+
+export interface AppendOptions {
+  /** 日付書式 (yyyy/M/d) を設定する列 (例: ['B'])。titleRowRange の列範囲内である必要がある */
+  dateColumns?: string[];
+}
 
 export class GoogleSpreadSheet {
   private spreadsheetId: string | undefined;
@@ -95,7 +105,8 @@ export class GoogleSpreadSheet {
   async appendDataRecords(
     sheetName: string,
     titleRowRange: string,
-    data: DataRecords
+    data: DataRecords,
+    options: AppendOptions = {}
   ): Promise<AppendResult> {
     if (!this.sheets || !this.spreadsheetId) {
       throw new Error('GoogleSpreadSheet is not open. Call open() first');
@@ -111,11 +122,21 @@ export class GoogleSpreadSheet {
       throw new Error('data.values must not contain undefined cells');
     }
 
+    const dateColumns = options.dateColumns ?? [];
+    const startColumnIndex = columnLetterToIndex(startColumn);
+    const endColumnIndex = columnLetterToIndex(endColumn);
+    for (const column of dateColumns) {
+      const index = /^[A-Z]+$/.test(column) ? columnLetterToIndex(column) : NaN;
+      if (!(index >= startColumnIndex && index <= endColumnIndex)) {
+        throw new Error(`dateColumns must be columns within titleRowRange: "${column}"`);
+      }
+    }
+
     if (data.values.length === 0) {
       return { range: '', rowCount: 0 };
     }
 
-    await this.assertSheetExists(sheetName);
+    const sheetId = await this.assertSheetExists(sheetName);
 
     // 追記先の行はGoogle側が検索範囲内の既存テーブルを検出して決定するため、下端を指定しない範囲を渡す
     const searchRange = buildRange(sheetName, startColumn, endColumn, startRow, 0);
@@ -135,6 +156,13 @@ export class GoogleSpreadSheet {
     const updatedRows = response.data.updates?.updatedRows;
     if (!updatedRange || updatedRows == null) {
       throw new Error('Failed to append data records: unexpected response from Sheets API');
+    }
+
+    if (dateColumns.length > 0) {
+      // RAWで書き込んだ日付シリアル値は、INSERT_ROWSで直前行の書式が引き継がれることを
+      // 期待するだけでは、直前行がタイトル行や数値書式の場合に整数のまま表示されてしまう。
+      // そのため追記した行の日付列に表示形式を明示的に設定する。
+      await this.applyDateFormat(sheetId, updatedRange, dateColumns);
     }
 
     return { range: updatedRange, rowCount: updatedRows };
@@ -194,17 +222,65 @@ export class GoogleSpreadSheet {
     return { range: updatedRange, rowCount: updatedRows };
   }
 
-  private async assertSheetExists(sheetName: string): Promise<void> {
+  private async applyDateFormat(
+    sheetId: number | null | undefined,
+    updatedRange: string,
+    dateColumns: string[]
+  ): Promise<void> {
+    if (!this.sheets || !this.spreadsheetId) {
+      throw new Error('GoogleSpreadSheet is not open. Call open() first');
+    }
+    if (sheetId == null) {
+      throw new Error('Failed to apply date format: sheetId is not available');
+    }
+
+    const match = UPDATED_RANGE_PATTERN.exec(updatedRange);
+    if (!match) {
+      throw new Error(`Failed to apply date format: unexpected updatedRange "${updatedRange}"`);
+    }
+    const startRow = Number(match[2]);
+    const endRow = Number(match[4] ?? match[2]);
+
+    // GridRange は0始まり・終端を含まないインデックスで指定する
+    const requests: sheets_v4.Schema$Request[] = dateColumns.map((column) => {
+      const columnIndex = columnLetterToIndex(column) - 1;
+      return {
+        repeatCell: {
+          range: {
+            sheetId,
+            startRowIndex: startRow - 1,
+            endRowIndex: endRow,
+            startColumnIndex: columnIndex,
+            endColumnIndex: columnIndex + 1,
+          },
+          cell: {
+            userEnteredFormat: {
+              numberFormat: { type: 'DATE', pattern: DATE_NUMBER_FORMAT_PATTERN },
+            },
+          },
+          fields: 'userEnteredFormat.numberFormat',
+        },
+      };
+    });
+
+    await this.sheets.spreadsheets.batchUpdate({
+      spreadsheetId: this.spreadsheetId,
+      requestBody: { requests },
+    });
+  }
+
+  private async assertSheetExists(sheetName: string): Promise<number | null | undefined> {
     const spreadsheet = await this.sheets!.spreadsheets.get({
       spreadsheetId: this.spreadsheetId,
-      fields: 'sheets.properties.title',
+      fields: 'sheets.properties(sheetId,title)',
     });
-    const sheetExists = spreadsheet.data.sheets?.some(
+    const targetSheet = spreadsheet.data.sheets?.find(
       (sheet) => sheet.properties?.title === sheetName
     );
-    if (!sheetExists) {
+    if (!targetSheet) {
       throw new Error(`Sheet "${sheetName}" does not exist`);
     }
+    return targetSheet.properties?.sheetId;
   }
 }
 

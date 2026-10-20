@@ -37,3 +37,22 @@
 - feature-list.json は機能追加ではないため変更なし。
 - 未解決: なし。
 
+
+## 2026-10-20 (Issue #31: 入出金履歴シートの日付が数値で表示される不具合の修正)
+- ブランチ: fix/issue-31/claude-code
+- 原因: appendDataRecords は INSERT_ROWS で直前行の書式が引き継がれることに依存しており、日付書式を明示していなかった。直前行がタイトル行・空シート・数値書式の場合、RAW で書き込んだ日付シリアル値が整数のまま表示される。
+- src/utils/googleSpreadSheet.ts: appendDataRecords に第4引数 options.dateColumns (列名配列) を追加。追記後、レスポンスの updatedRange の行範囲に対し spreadsheets.batchUpdate の repeatCell で numberFormat {type: DATE, pattern: 'yyyy/M/d'} を明示的に設定する。
+  - dateColumns は titleRowRange の列範囲外・不正な列名なら追記前にエラー。
+  - assertSheetExists が sheetId を返すよう変更 (fields を sheets.properties(sheetId,title) に)。
+- src/functions/transactions.ts: 入出金履歴・配当履歴 (共通の appendNewRecords) の追記で日付列 B を dateColumns に指定。appendNewCashFlowRecords をテスト用に export。
+- テスト: googleSpreadSheet.test.ts に日付書式設定の単体テスト 7 件、transactions.test.ts に GoogleSpreadSheet をモックした入出金履歴追記の単体テスト 2 件を追加。googleSpreadSheet.integration.test.ts に sand_box シート (ダミーファイル 1pnjJKg96MB0e4baO_SAjXbkJf6q8cFWGHdTX00qA5xw) へ追記して表示形式を確認する結合テストを追加。
+- 未解決:
+  - コンテナに GOOGLE_CLIENT_EMAIL / GOOGLE_PRIVATE_KEY が無く、結合テスト (ダミーファイルでの確認) は未実行。資格情報を用意した上で `npm run test:integration` で確認が必要。
+  - 月次資産状況履歴・為替レート履歴 (recordStockPriceHistory.ts / stockPriceHistory.ts) も同様に日付シリアル値を書式指定なしで追記しているため、同じ問題が潜在する可能性がある (本Issueの範囲外として未対応)。
+- feature-list.json はバグ修正のため変更なし。
+
+## 2026-10-20 (Issue #31 フォローアップ: 結合テストの実施)
+- ブランチ: fix/issue-31/claude-code (PR #32)
+- ユーザーが secrets.env に GOOGLE_CLIENT_EMAIL / GOOGLE_PRIVATE_KEY を復旧したため、ユーザー承認のうえ `npm run test:integration` を全件実行し、8件すべて成功。
+  - ダミーファイル 1pnjJKg96MB0e4baO_SAjXbkJf6q8cFWGHdTX00qA5xw の sand_box シートに追記したB列が formattedValue='2026/6/15'、numberFormat={type: DATE, pattern: 'yyyy/M/d'} になることを確認。
+- 前回の「未解決: 結合テスト未実行」は解消。月次資産状況履歴・為替レート履歴の潜在問題は引き続き未対応。

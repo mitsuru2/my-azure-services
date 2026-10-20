@@ -10,6 +10,7 @@ const {
   valuesGetMock,
   valuesAppendMock,
   valuesUpdateMock,
+  batchUpdateMock,
 } = vi.hoisted(() => {
   const authorizeMock = vi.fn().mockResolvedValue(undefined);
   const JWTMock = vi.fn().mockImplementation(function (
@@ -22,9 +23,11 @@ const {
   const valuesGetMock = vi.fn().mockResolvedValue({ data: {} });
   const valuesAppendMock = vi.fn().mockResolvedValue({ data: {} });
   const valuesUpdateMock = vi.fn().mockResolvedValue({ data: {} });
+  const batchUpdateMock = vi.fn().mockResolvedValue({ data: {} });
   const sheetsMock = vi.fn().mockReturnValue({
     spreadsheets: {
       get: spreadsheetsGetMock,
+      batchUpdate: batchUpdateMock,
       values: { get: valuesGetMock, append: valuesAppendMock, update: valuesUpdateMock },
     },
   });
@@ -36,6 +39,7 @@ const {
     valuesGetMock,
     valuesAppendMock,
     valuesUpdateMock,
+    batchUpdateMock,
   };
 });
 
@@ -450,6 +454,155 @@ describe('GoogleSpreadSheet', () => {
         },
       });
       expect(result).toEqual({ range: `${SHEET_NAME}!A3:B4`, rowCount: 2 });
+    });
+
+    it('dateColumnsを指定しない場合は表示形式を変更しない', async () => {
+      const sheet = await openSheet();
+      spreadsheetsGetMock.mockResolvedValueOnce({
+        data: { sheets: [{ properties: { sheetId: 123, title: SHEET_NAME } }] },
+      });
+      valuesAppendMock.mockResolvedValueOnce({
+        data: { updates: { updatedRange: `${SHEET_NAME}!A3:B3`, updatedRows: 1 } },
+      });
+
+      await sheet.appendDataRecords(SHEET_NAME, 'A1:B1', { values: [['a', 1]] });
+
+      expect(batchUpdateMock).not.toHaveBeenCalled();
+    });
+
+    it('dateColumnsを指定した場合、追記した行の該当列にyyyy/M/dの日付書式を明示的に設定する', async () => {
+      const sheet = await openSheet();
+      spreadsheetsGetMock.mockResolvedValueOnce({
+        data: { sheets: [{ properties: { sheetId: 123, title: SHEET_NAME } }] },
+      });
+      valuesAppendMock.mockResolvedValueOnce({
+        data: { updates: { updatedRange: `${SHEET_NAME}!A5:I7`, updatedRows: 3 } },
+      });
+
+      await sheet.appendDataRecords(
+        SHEET_NAME,
+        'A1:I1',
+        {
+          values: [
+            ['id1', 46203],
+            ['id2', 46204],
+            ['id3', 46205],
+          ],
+        },
+        { dateColumns: ['B'] }
+      );
+
+      expect(batchUpdateMock).toHaveBeenCalledWith({
+        spreadsheetId: TEST_SPREADSHEET_ID,
+        requestBody: {
+          requests: [
+            {
+              repeatCell: {
+                range: {
+                  sheetId: 123,
+                  startRowIndex: 4,
+                  endRowIndex: 7,
+                  startColumnIndex: 1,
+                  endColumnIndex: 2,
+                },
+                cell: {
+                  userEnteredFormat: {
+                    numberFormat: { type: 'DATE', pattern: 'yyyy/M/d' },
+                  },
+                },
+                fields: 'userEnteredFormat.numberFormat',
+              },
+            },
+          ],
+        },
+      });
+    });
+
+    it('シート名がクォートされたupdatedRangeや単一セルのupdatedRangeでも行範囲を正しく解釈する', async () => {
+      const sheet = await openSheet();
+      spreadsheetsGetMock.mockResolvedValueOnce({
+        data: { sheets: [{ properties: { sheetId: 0, title: SHEET_NAME } }] },
+      });
+      valuesAppendMock.mockResolvedValueOnce({
+        data: { updates: { updatedRange: `'${SHEET_NAME}'!C2`, updatedRows: 1 } },
+      });
+
+      await sheet.appendDataRecords(
+        SHEET_NAME,
+        'C1:C1',
+        { values: [[46203]] },
+        { dateColumns: ['C'] }
+      );
+
+      const range = batchUpdateMock.mock.calls[0][0].requestBody.requests[0].repeatCell.range;
+      expect(range).toEqual({
+        sheetId: 0,
+        startRowIndex: 1,
+        endRowIndex: 2,
+        startColumnIndex: 2,
+        endColumnIndex: 3,
+      });
+    });
+
+    it('複数のdateColumnsを指定した場合、列ごとに日付書式を設定する', async () => {
+      const sheet = await openSheet();
+      spreadsheetsGetMock.mockResolvedValueOnce({
+        data: { sheets: [{ properties: { sheetId: 1, title: SHEET_NAME } }] },
+      });
+      valuesAppendMock.mockResolvedValueOnce({
+        data: { updates: { updatedRange: `${SHEET_NAME}!A2:C2`, updatedRows: 1 } },
+      });
+
+      await sheet.appendDataRecords(
+        SHEET_NAME,
+        'A1:C1',
+        { values: [[46203, 'x', 46204]] },
+        { dateColumns: ['A', 'C'] }
+      );
+
+      const requests = batchUpdateMock.mock.calls[0][0].requestBody.requests;
+      expect(
+        requests.map(
+          (r: { repeatCell: { range: { startColumnIndex: number } } }) =>
+            r.repeatCell.range.startColumnIndex
+        )
+      ).toEqual([0, 2]);
+    });
+
+    it('dateColumnsにtitleRowRange外の列を指定した場合はエラーを投げ、追記しない', async () => {
+      const sheet = await openSheet();
+
+      await expect(
+        sheet.appendDataRecords(SHEET_NAME, 'A1:B1', { values: [['a', 1]] }, { dateColumns: ['C'] })
+      ).rejects.toThrow('dateColumns must be columns within titleRowRange: "C"');
+      expect(valuesAppendMock).not.toHaveBeenCalled();
+    });
+
+    it('dateColumnsに列名として不正な値を指定した場合はエラーを投げる', async () => {
+      const sheet = await openSheet();
+
+      await expect(
+        sheet.appendDataRecords(SHEET_NAME, 'A1:B1', { values: [['a', 1]] }, { dateColumns: ['b'] })
+      ).rejects.toThrow('dateColumns must be columns within titleRowRange: "b"');
+    });
+
+    it('sheetIdが取得できない場合は日付書式を設定できずエラーを投げる', async () => {
+      const sheet = await openSheet();
+      spreadsheetsGetMock.mockResolvedValueOnce({
+        data: { sheets: [{ properties: { title: SHEET_NAME } }] },
+      });
+      valuesAppendMock.mockResolvedValueOnce({
+        data: { updates: { updatedRange: `${SHEET_NAME}!A2:B2`, updatedRows: 1 } },
+      });
+
+      await expect(
+        sheet.appendDataRecords(
+          SHEET_NAME,
+          'A1:B1',
+          { values: [['a', 46203]] },
+          { dateColumns: ['B'] }
+        )
+      ).rejects.toThrow('Failed to apply date format: sheetId is not available');
     });
   });
 
