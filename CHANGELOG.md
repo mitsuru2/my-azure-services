@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.3](https://github.com/mitsuru2/my-azure-services/compare/v1.9.2...v1.9.3) (2026-11-07)
+
+
+### Bug Fixes
+
+* Add durable task extension configuration to host.json ([a0f91c2](https://github.com/mitsuru2/my-azure-services/commit/a0f91c2bf0e4d45416dd7681e332f769543664a4))
+
 ## [1.9.2](https://github.com/mitsuru2/my-azure-services/compare/v1.9.1...v1.9.2) (2026-10-20)
 
 
