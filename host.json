@@ -11,5 +11,13 @@
   "extensionBundle": {
     "id": "Microsoft.Azure.Functions.ExtensionBundle",
     "version": "[4.*, 5.0.0)"
+  },
+  "extensions": {
+    "durableTask": {
+      "hubName": "ti7d2zarxv6kefunctionsv2",
+      "storageProvider": {
+        "partitionCount": 1
+      }
+    }
   }
 }
